@@ -6,6 +6,16 @@ Version **2.4.0** · Windows desktop application · Python + Tkinter
 
 A single-window production studio that turns any hosted or local web application into a **locked-down, branded, double-clickable Windows launcher** — a portable `.exe`, a `.bat`/`.cmd` script, a silent `.vbs` wrapper, plus desktop-shortcut, auto-start, emergency-close helpers and a ready-to-send delivery ZIP — with a client profile database, deployment presets, a live code preview, a network/offline guard, EXE metadata branding and multi-client batch compilation.
 
+### 📚 Documentation Set
+
+| File | Audience | Language | Purpose |
+|---|---|---|---|
+| **`README.md`** *(this file)* | Developers & operators | English + اردو | Complete technical and operational manual |
+| **`CLIENT-README.md`** | The client receiving the launcher | اردو only | Simple, non-technical end-user handbook |
+| **`FEATURES.md`** | Management & pre-sales | English | Comprehensive feature, module and capability report |
+
+> **Send which file to whom?** Give `CLIENT-README.md` to the client with the delivery ZIP. Keep `README.md` for your team and use `FEATURES.md` in proposals, quotations and scope documents.
+
 ---
 
 ## 📑 Table of Contents
@@ -59,7 +69,7 @@ A single-window production studio that turns any hosted or local web application
 30. [ہر ماڈیول کی تفصیل](#30-ہر-ماڈیول-کی-تفصیل)
 31. [بنانے کا مکمل طریقہ — قدم بہ قدم](#31-بنانے-کا-مکمل-طریقہ--قدم-بہ-قدم)
 32. [بننے والی فائلیں](#32-بننے-والی-فائلیں)
-33. [کلائنٹ کے کمپیوٹر پر پروگرام کیسے چلتا ہے](#33-کلائنٹ-کے-کمپیوٹر-پر-پروگرام-کیسے-چلتا ہے)
+33. [کلائنٹ کے کمپیوٹر پر پروگرام کیسے چلتا ہے](#33-کلائنٹ-کے-کمپیوٹر-پر-پروگرام-کیسے-چلتا-ہے)
 34. [آف لائن اسکرین](#34-آف-لائن-اسکرین)
 35. [پروفائلز، بیک اپ اور منتقلی](#35-پروفائلز-بیک-اپ-اور-منتقلی)
 36. [عام استعمال کے منظرنامے](#36-عام-استعمال-کے-منظرنامے)
@@ -139,7 +149,7 @@ Everything is generated locally on your development machine. No account, no clou
 | **Live preview** | See the exact browser command, `.bat` script, embedded Python source and `.vbs` wrapper before building; copy to clipboard |
 | **Diagnostics** | Dependency badge (PyInstaller + Pillow), one-click pip installer, browser audit, timestamped build log |
 | **Batch build** | Multi-select saved profiles and compile all of them sequentially in one run |
-| **UX** | Auto-maximised window, F11 fullscreen, tooltips on every control, live filename/folder synchronisation, threaded builds that never freeze the UI |
+| **UX** | Auto-maximised window, F11 fullscreen, tooltips on nearly every control, live filename/folder synchronisation, threaded builds that never freeze the UI |
 
 ---
 
@@ -403,7 +413,7 @@ Selecting a preset also writes a log line `Applied preset profile: <name>` so th
 
 ### 9.7 Tab — Code & Script Preview
 
-A live, read-only-in-spirit inspector for exactly what will be produced. Everything regenerates instantly as you change any option.
+A live, read-only-in-spirit inspector for exactly what will be produced. It regenerates instantly as you change any identity, launch-mode, display or network option.
 
 | View | Shows |
 |---|---|
@@ -974,7 +984,7 @@ webToExe/
 ## 23. Changelog
 
 ### v2.4.0 — current
-- Enterprise rebrand: **KioskForge Pro** with a full card-based slate/blue UI, live tooltips on every control and a maximised, fullscreen-capable shell.
+- Enterprise rebrand: **KioskForge Pro** with a full card-based slate/blue UI, live tooltips on nearly every control and a maximised, fullscreen-capable shell.
 - **Client profile database** with load / save / delete / JSON import / JSON export.
 - **Five deployment presets** (POS, standalone app, public kiosk, queue display, self-signed intranet).
 - **Three launch modes** plus 12 individual runtime switches.
