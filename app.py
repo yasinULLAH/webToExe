@@ -16,7 +16,12 @@ from tkinter import filedialog, messagebox, ttk
 
 APP_TITLE = "KioskForge Pro - Enterprise Client Web App & Portable EXE Builder"
 APP_VERSION = "2.4.0"
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if getattr(sys, "frozen", False):
+    # Compiled .exe: keep the profile database beside the executable instead of
+    # PyInstaller's temporary extraction folder (which is deleted on exit).
+    BASE_DIR = os.path.dirname(os.path.abspath(sys.executable))
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "kiosk_clients_db.json")
 
 

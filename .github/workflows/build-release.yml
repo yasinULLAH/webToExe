@@ -1,0 +1,160 @@
+name: Build Portable EXE & Release
+
+# Runs entirely on GitHub-hosted Windows runners.
+# Every commit pushed to main/master compiles a portable single-file EXE
+# and publishes it as a GitHub Release.
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-release:
+    name: Compile & Publish
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --upgrade pyinstaller pillow
+
+      - name: Read app version and build tag
+        id: meta
+        shell: pwsh
+        run: |
+          $src = Get-Content -Path 'app.py' -Raw
+          $m = [regex]::Match($src, 'APP_VERSION\s*=\s*"([0-9]+(?:\.[0-9]+)*)"')
+          if (-not $m.Success) { throw 'Could not read APP_VERSION from app.py' }
+
+          $ver = $m.Groups[1].Value
+          $short = $env:GITHUB_SHA.Substring(0, 7)
+
+          "version=$ver"          >> $env:GITHUB_OUTPUT
+          "short_sha=$short"      >> $env:GITHUB_OUTPUT
+          "tag=v$ver-build.$($env:GITHUB_RUN_NUMBER)" >> $env:GITHUB_OUTPUT
+
+      - name: Generate Windows version resource
+        run: python .github/scripts/gen_version_info.py app.py version_info.txt
+
+      - name: Compile portable single-file EXE
+        shell: pwsh
+        run: |
+          $pyiArgs = @(
+            '--noconfirm',
+            '--onefile',
+            '--noconsole',
+            '--clean',
+            '--name', 'KioskForgePro',
+            '--version-file', 'version_info.txt'
+          )
+          if (Test-Path 'assets/icon.ico') {
+            $pyiArgs += @('--icon', 'assets/icon.ico')
+          }
+
+          python -m PyInstaller @pyiArgs app.py
+
+          if (-not (Test-Path 'dist/KioskForgePro.exe')) {
+            throw 'Build failed: dist/KioskForgePro.exe was not produced.'
+          }
+
+      - name: Prepare release assets
+        id: assets
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+
+          $ver  = '${{ steps.meta.outputs.version }}'
+          $name = "KioskForgePro-v$ver-windows-x64.exe"
+
+          Copy-Item 'dist/KioskForgePro.exe' "release/$name"
+
+          $hash = (Get-FileHash "release/$name" -Algorithm SHA256).Hash.ToLower()
+          "$hash  $name" | Set-Content -Path 'release/SHA256SUMS.txt' -Encoding ascii
+
+          "exe_name=$name"   >> $env:GITHUB_OUTPUT
+          "size_mb=$([math]::Round((Get-Item "release/$name").Length / 1MB, 1))" >> $env:GITHUB_OUTPUT
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: KioskForgePro-${{ steps.meta.outputs.tag }}
+          path: |
+            release/*.exe
+            release/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: KioskForge Pro v${{ steps.meta.outputs.version }} — Build ${{ github.run_number }}
+          generate_release_notes: true
+          make_latest: true
+          fail_on_unmatched_files: true
+          body: |
+            ## KioskForge Pro v${{ steps.meta.outputs.version }}
+
+            Portable, standalone Windows executable — **no Python installation required**.
+
+            | | |
+            |---|---|
+            | **Version** | ${{ steps.meta.outputs.version }} |
+            | **Commit** | `${{ steps.meta.outputs.short_sha }}` |
+            | **Build** | #${{ github.run_number }} |
+            | **Platform** | Windows 10 / 11 (x64) |
+            | **File** | `${{ steps.assets.outputs.exe_name }}` |
+            | **Size** | ${{ steps.assets.outputs.size_mb }} MB |
+
+            ### Download & Run
+
+            1. Download `${{ steps.assets.outputs.exe_name }}` from the assets below.
+            2. Place it in a permanent folder (e.g. `C:\KioskForgePro\`).
+            3. Double-click it. No installer, no admin rights, no dependencies.
+
+            > **Note:** the executable is not code-signed, so Windows SmartScreen may show
+            > *"Windows protected your PC"* the first time. Click **More info → Run anyway**.
+
+            ### Verify the download (optional)
+
+            ```powershell
+            Get-FileHash .\${{ steps.assets.outputs.exe_name }} -Algorithm SHA256
+            ```
+
+            Compare the result with the hash in `SHA256SUMS.txt`.
+
+            ### Notes
+
+            - Client profiles are stored in `kiosk_clients_db.json` **next to the executable**.
+            - This portable build can manage profiles, presets, live previews and generate all
+              script deliverables (`.bat`, `.cmd`, `.vbs`, shortcut/auto-start/close helpers and
+              the delivery ZIP). Compiling a client `.exe` still requires **PyInstaller installed
+              in a local Python environment**, because the frozen build cannot invoke pip or
+              PyInstaller on itself.
+            - This release was compiled automatically from commit
+              [`${{ steps.meta.outputs.short_sha }}`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}).
+          files: |
+            release/*.exe
+            release/SHA256SUMS.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

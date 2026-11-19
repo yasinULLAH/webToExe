@@ -976,8 +976,45 @@ webToExe/
 ├── kiosk_clients_db.json   # Created at runtime: your live profile database
 ├── README.md               # This bilingual technical documentation
 ├── CLIENT-README.md        # Simple Urdu client handbook
-└── FEATURES.md             # Comprehensive feature report
+├── FEATURES.md             # Comprehensive feature report
+├── .gitignore              # Excludes PyInstaller build output
+└── .github/
+    ├── workflows/
+    │   └── build-release.yml          # CI: compile portable EXE + publish Release
+    └── scripts/
+        └── gen_version_info.py        # Generates the EXE version resource
 ```
+
+### Automated Releases (GitHub Actions)
+
+`.github/workflows/build-release.yml` builds and publishes a Windows executable **entirely on GitHub-hosted runners** — no local Python, no local PyInstaller.
+
+| Trigger | Result |
+|---|---|
+| Push to `main` or `master` | Compiles `KioskForgePro.exe` and publishes a new GitHub Release |
+| Manual **Run workflow** | Same, without needing a commit |
+
+**Pipeline steps**
+
+1. Checkout → set up Python 3.12 → install PyInstaller + Pillow.
+2. Read `APP_VERSION` from `app.py` and derive the tag `v<version>-build.<run_number>`.
+3. Generate `version_info.txt` (Company / Product / Version / Copyright) from `APP_VERSION`.
+4. Compile with `--onefile --noconsole --clean --version-file` (+ `--icon assets/icon.ico` automatically if that file exists).
+5. Rename to `KioskForgePro-v<version>-windows-x64.exe`, generate `SHA256SUMS.txt`.
+6. Upload a workflow artifact (30-day retention).
+7. Create a GitHub Release with the EXE + checksum, auto-generated release notes, and mark it as **Latest**.
+
+**To use it**
+
+1. Push this repository to GitHub (the workflow must exist on the default branch).
+2. Commit anything — the run starts automatically.
+3. Open **Releases** on the repo and download the `.exe`.
+
+Notes:
+- Repository **Settings → Actions → General → Workflow permissions** must allow *Read and write permissions* (the workflow already requests `contents: write`).
+- Add `assets/icon.ico` to the repo if you want a custom executable icon.
+- Releases are unsigned, so SmartScreen may prompt once on the client machine.
+- The portable build manages profiles, presets, previews and every script deliverable, but compiling a client `.exe` still needs PyInstaller in a local Python installation (a frozen build cannot run pip or PyInstaller on itself).
 
 ---
 
@@ -995,6 +1032,8 @@ webToExe/
 - **Multi-Client Batch Build** tab with multi-select and sequential compilation.
 - **Build Log & Diagnostics** with timestamped logging and local browser audit.
 - Threaded builds, dependency badge, one-click pip installer, auto-synchronised filename/profile/product derivation, and CLI flag sanitisation.
+- **Portable-build support:** when running as a compiled `.exe`, the profile database is now stored beside the executable instead of PyInstaller's temporary extraction folder, so saved client profiles persist between runs.
+- **CI/CD:** GitHub Actions workflow compiles the portable Windows executable and publishes a tagged GitHub Release on every push to `main`.
 
 ---
 
