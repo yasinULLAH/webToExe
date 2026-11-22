@@ -131,17 +131,17 @@ PRESETS = {
 
 
 DEFAULT_CONFIG = {
-    "client_name": "Al-Falah Medical Center",
-    "app_name": "Hospital Management Portal",
-    "url": "https://alfalahcomplex.com/login",
-    "output_name": "Hospital_Management_Portal_Launcher",
+    "client_name": "Demo Client",
+    "app_name": "Web Application",
+    "url": "https://example.com",
+    "output_name": "Web_App_Launcher",
     "output_dir": os.path.join(os.path.expanduser("~"), "Desktop", "Client_Kiosk_Deliverables"),
     "icon_path": "",
     "browser_target": "Auto (Chrome -> Edge -> Brave)",
     "launch_mode": "kiosk",
     "kiosk_printing": True,
     "isolated_profile": True,
-    "profile_folder": "Hospital_Management_Portal_Profile",
+    "profile_folder": "Web_App_Profile",
     "incognito": False,
     "disable_pinch": True,
     "disable_swipe_nav": True,
@@ -162,17 +162,17 @@ DEFAULT_CONFIG = {
     "health_check": True,
     "health_retries": "3",
     "offline_fallback": True,
-    "support_phone": "+92-336-1593533",
+    "support_phone": "+1-800-555-0199",
     "ignore_cert_errors": False,
     "clear_cache_on_launch": False,
     "clear_session_on_exit": False,
     "proxy_server": "",
     "user_agent": "",
-    "exe_company": "Bannu Software Solutions (SSTS)",
-    "exe_product": "Hospital Management Portal Kiosk",
+    "exe_company": "Enterprise Software Solutions",
+    "exe_product": "Web Application Kiosk",
     "exe_desc": "Dedicated Desktop Kiosk Client Launcher",
     "exe_version": "1.0.0.0",
-    "exe_copyright": "Copyright (c) 2026 Bannu Software Solutions",
+    "exe_copyright": "Copyright (c) 2026 Enterprise Software Solutions",
     "uac_admin": False,
     "gen_exe": True,
     "gen_bat": True,
@@ -1285,10 +1285,10 @@ class KioskForgeApp:
         style.map("TNotebook.Tab", background=[("selected", "#ffffff")], foreground=[("selected", accent_blue)])
 
     def init_variables(self):
-        self.var_client_name = tk.StringVar(value="Al-Falah Medical Center")
-        self.var_app_name = tk.StringVar(value="Hospital Management Portal")
+        self.var_client_name = tk.StringVar(value="Demo Client")
+        self.var_app_name = tk.StringVar(value="Web Application")
         self.var_url = tk.StringVar(value="https://example.com")
-        self.var_output_name = tk.StringVar(value="Hospital_Management_Portal_Launcher")
+        self.var_output_name = tk.StringVar(value="Web_App_Launcher")
         self.var_output_dir = tk.StringVar(value=os.path.join(os.path.expanduser("~"), "Desktop", "Client_Kiosk_Deliverables"))
         self.var_icon_path = tk.StringVar(value="")
         self.var_preset = tk.StringVar(value="POS & Thermal Receipt Terminal")
@@ -1297,7 +1297,7 @@ class KioskForgeApp:
         self.var_launch_mode = tk.StringVar(value="kiosk")
         self.var_kiosk_printing = tk.BooleanVar(value=True)
         self.var_isolated_profile = tk.BooleanVar(value=True)
-        self.var_profile_folder = tk.StringVar(value="Hospital_Management_Portal_Profile")
+        self.var_profile_folder = tk.StringVar(value="Web_App_Profile")
         self.var_incognito = tk.BooleanVar(value=False)
         self.var_disable_pinch = tk.BooleanVar(value=True)
         self.var_disable_swipe_nav = tk.BooleanVar(value=True)
@@ -1319,18 +1319,18 @@ class KioskForgeApp:
         self.var_health_check = tk.BooleanVar(value=True)
         self.var_health_retries = tk.StringVar(value="3")
         self.var_offline_fallback = tk.BooleanVar(value=True)
-        self.var_support_phone = tk.StringVar(value="+92-336-1593533")
+        self.var_support_phone = tk.StringVar(value="+1-800-555-0199")
         self.var_ignore_cert_errors = tk.BooleanVar(value=False)
         self.var_clear_cache_on_launch = tk.BooleanVar(value=False)
         self.var_clear_session_on_exit = tk.BooleanVar(value=False)
         self.var_proxy_server = tk.StringVar(value="")
         self.var_user_agent = tk.StringVar(value="")
 
-        self.var_exe_company = tk.StringVar(value="Bannu Software Solutions (SSTS)")
-        self.var_exe_product = tk.StringVar(value="Hospital Management Portal Kiosk")
+        self.var_exe_company = tk.StringVar(value="Enterprise Software Solutions")
+        self.var_exe_product = tk.StringVar(value="Web Application Kiosk")
         self.var_exe_desc = tk.StringVar(value="Dedicated Desktop Kiosk Client Launcher")
         self.var_exe_version = tk.StringVar(value="1.0.0.0")
-        self.var_exe_copyright = tk.StringVar(value="Copyright (c) 2026 Bannu Software Solutions")
+        self.var_exe_copyright = tk.StringVar(value="Copyright (c) 2026 Enterprise Software Solutions")
         self.var_uac_admin = tk.BooleanVar(value=False)
 
         self.var_gen_exe = tk.BooleanVar(value=True)

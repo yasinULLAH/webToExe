@@ -1,16 +1,16 @@
 {
-  "Al-Falah Medical Center - HMS Kiosk Portal": {
-    "client_name": "Al-Falah Medical Center",
-    "app_name": "HMS Kiosk Portal",
+  "Acme Corporation - Inventory Portal": {
+    "client_name": "Acme Corporation",
+    "app_name": "Inventory Portal",
     "url": "https://example.com",
-    "output_name": "HMS_Kiosk_Launcher",
-    "output_dir": "C:\\Users\\Yasin\\Desktop\\Client_Launchers",
+    "output_name": "Inventory_Portal_Launcher",
+    "output_dir": "C:\\Deliverables",
     "icon_path": "",
     "browser_target": "Auto (Chrome -> Edge -> Brave)",
     "launch_mode": "kiosk",
     "kiosk_printing": true,
     "isolated_profile": true,
-    "profile_folder": "HMS_Kiosk_Profile",
+    "profile_folder": "Inventory_Portal_Profile",
     "incognito": false,
     "disable_pinch": true,
     "disable_swipe_nav": true,

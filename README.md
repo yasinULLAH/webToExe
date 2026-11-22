@@ -261,7 +261,7 @@ Everything is generated locally on your development machine. No account, no clou
 2. In **Client / Organization** type the client's business name, e.g. `Al-Falah Medical Center`.
 3. In **Web App Title** type the product name, e.g. `Hospital Management Portal`.
    → The **Output Base Filename**, **Isolated Profile Folder** and **EXE Product Name** fill themselves automatically (`Hospital_Management_Portal_Launcher`, `Hospital_Management_Portal_Profile`, `Hospital Management Portal Kiosk`).
-4. In **Web Application URL** paste the address, e.g. `https://hms.alfalah.pk`.
+4. In **Web Application URL** paste the address, e.g. `https://hms.yourclient.com`.
 5. Choose a **Deployment Preset** — for a reception/hospital counter choose `POS & Thermal Receipt Terminal`; for an office desktop app choose `Standalone Desktop Web App (--app)`.
 6. *(Optional)* **Browse** for a logo in **Launcher Icon**.
 7. **Browse** a **Deliverables Folder** (defaults to `Desktop\Client_Kiosk_Deliverables`).
@@ -673,7 +673,7 @@ Styling is a clean light card layout (white card, slate text, blue primary butto
   "Al-Falah Medical Center - Hospital Management Portal": {
     "client_name": "Al-Falah Medical Center",
     "app_name": "Hospital Management Portal",
-    "url": "https://hms.alfalah.pk",
+    "url": "https://hms.yourclient.com",
     "output_name": "Hospital_Management_Portal_Launcher",
     "output_dir": "C:\\Users\\Yasin\\Desktop\\Client_Kiosk_Deliverables",
     "icon_path": "C:\\assets\\logo.png",
