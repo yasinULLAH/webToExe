@@ -1,3 +1,4 @@
+import argparse
 import base64
 import json
 import os
@@ -129,6 +130,996 @@ PRESETS = {
 }
 
 
+DEFAULT_CONFIG = {
+    "client_name": "Al-Falah Medical Center",
+    "app_name": "Hospital Management Portal",
+    "url": "https://alfalahcomplex.com/login",
+    "output_name": "Hospital_Management_Portal_Launcher",
+    "output_dir": os.path.join(os.path.expanduser("~"), "Desktop", "Client_Kiosk_Deliverables"),
+    "icon_path": "",
+    "browser_target": "Auto (Chrome -> Edge -> Brave)",
+    "launch_mode": "kiosk",
+    "kiosk_printing": True,
+    "isolated_profile": True,
+    "profile_folder": "Hospital_Management_Portal_Profile",
+    "incognito": False,
+    "disable_pinch": True,
+    "disable_swipe_nav": True,
+    "no_first_run": True,
+    "suppress_dialogs": True,
+    "autoplay_media": True,
+    "disable_translate": True,
+    "start_maximized": False,
+    "start_fullscreen": True,
+    "disable_extensions": True,
+    "custom_geometry": False,
+    "win_width": "1366",
+    "win_height": "768",
+    "win_x": "0",
+    "win_y": "0",
+    "scale_factor": "1.0",
+    "extra_flags": "--disable-print-preview",
+    "health_check": True,
+    "health_retries": "3",
+    "offline_fallback": True,
+    "support_phone": "+92-336-1593533",
+    "ignore_cert_errors": False,
+    "clear_cache_on_launch": False,
+    "clear_session_on_exit": False,
+    "proxy_server": "",
+    "user_agent": "",
+    "exe_company": "Bannu Software Solutions (SSTS)",
+    "exe_product": "Hospital Management Portal Kiosk",
+    "exe_desc": "Dedicated Desktop Kiosk Client Launcher",
+    "exe_version": "1.0.0.0",
+    "exe_copyright": "Copyright (c) 2026 Bannu Software Solutions",
+    "uac_admin": False,
+    "gen_exe": True,
+    "gen_bat": True,
+    "gen_cmd": False,
+    "gen_vbs": True,
+    "gen_shortcut_helper": True,
+    "add_startup_helper": True,
+    "add_kill_helper": True,
+    "gen_zip": True,
+    "kill_existing": True
+}
+
+
+def load_database():
+    if os.path.isfile(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+
+def save_database(data):
+    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+
+def find_profile(db, query):
+    if not query:
+        return None, None
+    q = query.strip()
+    if q in db:
+        return q, db[q]
+    q_low = q.lower()
+    for k, v in db.items():
+        if k.lower() == q_low:
+            return k, v
+    matches = [k for k in db.keys() if q_low in k.lower()]
+    if len(matches) == 1:
+        return matches[0], db[matches[0]]
+    if len(matches) > 1:
+        return matches, None
+    return None, None
+
+
+def sanitize_slug(text):
+    cleaned = re.sub(r"[^A-Za-z0-9_-]+", "_", (text or "").strip())
+    return cleaned.strip("_") or "Client_WebApp"
+
+
+def get_browser_candidates(target):
+    chrome_paths = [
+        r"%ProgramFiles%\Google\Chrome\Application\chrome.exe",
+        r"%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe",
+        r"%LocalAppData%\Google\Chrome\Application\chrome.exe"
+    ]
+    edge_paths = [
+        r"%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe",
+        r"%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"
+    ]
+    brave_paths = [
+        r"%ProgramFiles%\BraveSoftware\Brave-Browser\Application\brave.exe",
+        r"%ProgramFiles(x86)%\BraveSoftware\Brave-Browser\Application\brave.exe",
+        r"%LocalAppData%\BraveSoftware\Brave-Browser\Application\brave.exe"
+    ]
+    if target == "Google Chrome Only":
+        return chrome_paths
+    if target == "Microsoft Edge Only":
+        return edge_paths
+    if target == "Brave Browser Only":
+        return brave_paths
+    return chrome_paths + edge_paths + brave_paths
+
+
+def build_flag_list(cfg, profile_dir_token=None, target_url_override=None):
+    url = target_url_override or cfg.get("url", "").strip() or "https://example.com"
+    if not re.match(r"^(https?|file)://", url, re.IGNORECASE):
+        url = "https://" + url
+
+    flags = []
+    mode = cfg.get("launch_mode", "kiosk")
+
+    if mode == "kiosk":
+        flags.append("--kiosk")
+    elif mode == "app":
+        flags.append(f"--app={url}")
+
+    if cfg.get("kiosk_printing", False):
+        flags.append("--kiosk-printing")
+
+    if cfg.get("isolated_profile", True):
+        folder = sanitize_slug(cfg.get("profile_folder", ""))
+        if profile_dir_token:
+            flags.append(f'--user-data-dir="{profile_dir_token}"')
+        else:
+            flags.append(f'--user-data-dir="%LOCALAPPDATA%\\WebAppKiosks\\{folder}"')
+
+    if cfg.get("incognito", False):
+        flags.append("--incognito")
+    if cfg.get("disable_pinch", False):
+        flags.append("--disable-pinch")
+    if cfg.get("disable_swipe_nav", False):
+        flags.append("--overscroll-history-navigation=0")
+    if cfg.get("no_first_run", True):
+        flags.append("--no-first-run")
+        flags.append("--no-default-browser-check")
+    if cfg.get("suppress_dialogs", True):
+        flags.append("--noerrdialogs")
+        flags.append("--disable-session-crashed-bubble")
+        flags.append("--disable-infobars")
+    if cfg.get("autoplay_media", True):
+        flags.append("--autoplay-policy=no-user-gesture-required")
+    if cfg.get("disable_translate", True):
+        flags.append("--disable-features=Translate")
+    if cfg.get("disable_extensions", False):
+        flags.append("--disable-extensions")
+    if cfg.get("start_maximized", False) and mode != "kiosk":
+        flags.append("--start-maximized")
+    if cfg.get("start_fullscreen", False) and mode != "kiosk":
+        flags.append("--start-fullscreen")
+    if cfg.get("ignore_cert_errors", False):
+        flags.append("--ignore-certificate-errors")
+
+    scale = str(cfg.get("scale_factor", "1.0")).strip()
+    if scale and scale != "1.0":
+        flags.append(f"--force-device-scale-factor={scale}")
+
+    proxy = str(cfg.get("proxy_server", "")).strip()
+    if proxy:
+        flags.append(f"--proxy-server={proxy}")
+
+    ua = str(cfg.get("user_agent", "")).strip()
+    if ua:
+        flags.append(f'--user-agent="{ua}"')
+
+    if cfg.get("custom_geometry", False):
+        w = str(cfg.get("win_width", "1366")).strip()
+        h = str(cfg.get("win_height", "768")).strip()
+        x = str(cfg.get("win_x", "0")).strip()
+        y = str(cfg.get("win_y", "0")).strip()
+        if w.isdigit() and h.isdigit():
+            flags.append(f"--window-size={w},{h}")
+        if x.lstrip("-").isdigit() and y.lstrip("-").isdigit():
+            flags.append(f"--window-position={x},{y}")
+
+    extra = str(cfg.get("extra_flags", "")).strip()
+    if extra:
+        flags.extend(extra.split())
+
+    if mode in ("kiosk", "normal"):
+        flags.append(f'"{url}"')
+
+    return flags, url
+
+
+def build_offline_fallback_html(cfg, target_url):
+    app_title = cfg.get("app_name", "").strip() or "Web Application"
+    client_name = cfg.get("client_name", "").strip() or "Client Terminal"
+    support = cfg.get("support_phone", "").strip() or "Technical Support"
+    safe_url = json.dumps(target_url)
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{app_title} - Connection Status</title>
+<style>
+  body {{ margin: 0; font-family: 'Segoe UI', system-ui, sans-serif; background: #f1f5f9; color: #0f172a; display: flex; align-items: center; justify-content: center; height: 100vh; }}
+  .card {{ background: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 36px 42px; max-width: 480px; text-align: center; box-shadow: 0 10px 25px rgba(15,23,42,0.08); }}
+  .badge {{ display: inline-block; background: #fef3c7; color: #92400e; font-weight: 700; font-size: 12px; padding: 4px 12px; border-radius: 999px; margin-bottom: 14px; }}
+  h1 {{ margin: 0 0 8px; font-size: 22px; }}
+  p {{ color: #475569; font-size: 14px; line-height: 1.5; margin: 0 0 20px; }}
+  .meta {{ background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; font-size: 12px; color: #334155; margin-bottom: 20px; }}
+  button {{ background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 10px 22px; font-size: 14px; font-weight: 600; cursor: pointer; }}
+  button:hover {{ background: #1d4ed8; }}
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="badge">WAITING FOR NETWORK / SERVER</div>
+    <h1>{app_title}</h1>
+    <p>Unable to reach the application server right now. Check your internet or local network cable. This terminal will reconnect automatically.</p>
+    <div class="meta">
+      <div><strong>Terminal:</strong> {client_name}</div>
+      <div><strong>Support:</strong> {support}</div>
+      <div id="status" style="margin-top:6px;color:#2563eb;font-weight:600;">Retrying connection in 5s...</div>
+    </div>
+    <button onclick="retryNow()">Reconnect Now</button>
+  </div>
+<script>
+  const TARGET_URL = {safe_url};
+  let sec = 5;
+  function retryNow() {{
+    document.getElementById('status').innerText = 'Connecting...';
+    window.location.href = TARGET_URL;
+  }}
+  setInterval(() => {{
+    sec--;
+    if (sec <= 0) {{
+      retryNow();
+      sec = 5;
+    }} else {{
+      document.getElementById('status').innerText = 'Retrying connection in ' + sec + 's...';
+    }}
+  }}, 1000);
+</script>
+</body>
+</html>"""
+    return html
+
+
+def generate_batch_content(cfg):
+    flags, url = build_flag_list(cfg)
+    candidates = get_browser_candidates(cfg.get("browser_target", "Auto (Chrome -> Edge -> Brave)"))
+    app_title = cfg.get("app_name", "").strip() or "Web App Kiosk"
+    folder = sanitize_slug(cfg.get("profile_folder", ""))
+    parsed = urllib.parse.urlparse(url)
+    host = parsed.hostname or ""
+
+    lines = [
+        "@echo off",
+        f"title {app_title} Launcher",
+        "setlocal enabledelayedexpansion",
+        "",
+        'set "BROWSER_EXE="'
+    ]
+    for c in candidates:
+        lines.append(f'if not defined BROWSER_EXE if exist "{c}" set "BROWSER_EXE={c}"')
+
+    lines.extend([
+        'if not defined BROWSER_EXE (',
+        f'    powershell -NoProfile -Command "[System.Windows.Forms.MessageBox]::Show(\'Google Chrome or Microsoft Edge was not found on this system. Please install Google Chrome to continue.\', \'{app_title} - Browser Missing\', [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)" >nul 2>&1',
+        f'    echo Error: Chromium browser not found on this computer for {app_title}.',
+        '    pause',
+        '    exit /b 1',
+        ')'
+    ])
+
+    if cfg.get("kill_existing", True):
+        lines.append(f'powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object {{ $_.CommandLine -like \'*{folder}*\' }} | ForEach-Object {{ Stop-Process -Id $_.ProcessId -Force }}" >nul 2>&1')
+
+    if cfg.get("isolated_profile", True):
+        lines.append(f'set "PROFILE_DIR=%LOCALAPPDATA%\\WebAppKiosks\\{folder}"')
+        lines.append('if not exist "%PROFILE_DIR%" mkdir "%PROFILE_DIR%"')
+        if cfg.get("clear_cache_on_launch", False):
+            lines.append('if exist "%PROFILE_DIR%\\Default\\Cache" rmdir /s /q "%PROFILE_DIR%\\Default\\Cache" >nul 2>&1')
+            lines.append('if exist "%PROFILE_DIR%\\Default\\Code Cache" rmdir /s /q "%PROFILE_DIR%\\Default\\Code Cache" >nul 2>&1')
+
+    if cfg.get("health_check", True) and host:
+        retries = max(1, int(cfg.get("health_retries", 3) or 3))
+        lines.extend([
+            f'set /a RETRIES={retries}',
+            ':CHECK_NET',
+            f'powershell -NoProfile -Command "try {{ $r = Invoke-WebRequest -Uri \'{url}\' -UseBasicParsing -TimeoutSec 3; exit 0 }} catch {{ exit 1 }}" >nul 2>&1',
+            'if %errorlevel% equ 0 goto LAUNCH_APP',
+            'set /a RETRIES-=1',
+            'if %RETRIES% gtr 0 (',
+            '    timeout /t 2 /nobreak >nul',
+            '    goto CHECK_NET',
+            ')'
+        ])
+
+    lines.append(":LAUNCH_APP")
+    flag_str = " ".join(flags)
+    lines.append(f'start "" "%BROWSER_EXE%" {flag_str}')
+    lines.append("exit /b 0")
+    return "\r\n".join(lines) + "\r\n"
+
+
+def generate_vbs_content(cfg, bat_filename):
+    lines = [
+        'Set WshShell = CreateObject("WScript.Shell")',
+        'Set FSO = CreateObject("Scripting.FileSystemObject")',
+        'ScriptDir = FSO.GetParentFolderName(WScript.ScriptFullName)',
+        f'BatPath = ScriptDir & "\\{bat_filename}"',
+        'If FSO.FileExists(BatPath) Then',
+        '    WshShell.Run Chr(34) & BatPath & Chr(34), 0, False',
+        'Else',
+        f'    MsgBox "Missing launcher script: {bat_filename}", 16, "Launcher Error"',
+        'End If'
+    ]
+    return "\r\n".join(lines) + "\r\n"
+
+
+def generate_embedded_python_source(cfg):
+    flags, url = build_flag_list(cfg, profile_dir_token="__PROFILE_DIR__")
+    candidates = get_browser_candidates(cfg.get("browser_target", "Auto (Chrome -> Edge -> Brave)"))
+    folder = sanitize_slug(cfg.get("profile_folder", ""))
+    use_isolated = bool(cfg.get("isolated_profile", True))
+    kill_existing = bool(cfg.get("kill_existing", True))
+    app_title = cfg.get("app_name", "").strip() or "Web App Kiosk"
+    health_check = bool(cfg.get("health_check", True))
+    retries = max(1, int(cfg.get("health_retries", 3) or 3))
+    use_fallback = bool(cfg.get("offline_fallback", True))
+    clear_cache = bool(cfg.get("clear_cache_on_launch", False))
+    clear_session = bool(cfg.get("clear_session_on_exit", False))
+    fallback_b64 = base64.b64encode(build_offline_fallback_html(cfg, url).encode("utf-8")).decode("ascii")
+
+    clean_args = []
+    for f in flags:
+        if f.startswith('--user-agent="'):
+            clean_args.append("--user-agent=" + f[len('--user-agent="'):-1])
+        elif f.startswith('"') and f.endswith('"'):
+            clean_args.append(f[1:-1])
+        else:
+            clean_args.append(f)
+
+    ps_line = "        ps_cmd = 'Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like \"*' + PROFILE_FOLDER + '*\" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }'"
+
+    source = f"""import base64
+import ctypes
+import os
+import shutil
+import ssl
+import subprocess
+import sys
+import time
+import urllib.request
+
+CANDIDATES = {json.dumps(candidates)}
+RAW_ARGS = {json.dumps(clean_args)}
+TARGET_URL = {json.dumps(url)}
+PROFILE_FOLDER = {json.dumps(folder)}
+USE_ISOLATED = {repr(use_isolated)}
+KILL_EXISTING = {repr(kill_existing)}
+APP_TITLE = {json.dumps(app_title)}
+HEALTH_CHECK = {repr(health_check)}
+MAX_RETRIES = {retries}
+USE_FALLBACK = {repr(use_fallback)}
+CLEAR_CACHE = {repr(clear_cache)}
+CLEAR_SESSION = {repr(clear_session)}
+FALLBACK_B64 = {json.dumps(fallback_b64)}
+
+def find_browser():
+    for raw in CANDIDATES:
+        expanded = os.path.expandvars(raw)
+        if os.path.isfile(expanded):
+            return expanded
+    return None
+
+def is_url_reachable(target):
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    for _ in range(MAX_RETRIES):
+        try:
+            req = urllib.request.Request(target, headers={{"User-Agent": "Mozilla/5.0"}})
+            with urllib.request.urlopen(req, timeout=3, context=ctx):
+                return True
+        except Exception:
+            time.sleep(2)
+    return False
+
+def kill_previous_instances():
+    try:
+{ps_line}
+        subprocess.run(
+            ["powershell", "-NoProfile", "-Command", ps_cmd],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=0x08000000
+        )
+    except Exception:
+        pass
+
+def clean_profile_cache(profile_dir):
+    for sub in ["Cache", "Code Cache", "GPUCache"]:
+        target = os.path.join(profile_dir, "Default", sub)
+        if os.path.isdir(target):
+            shutil.rmtree(target, ignore_errors=True)
+
+def clean_profile_session(profile_dir):
+    for item in ["Cookies", "Cookies-journal", "Session Storage", "Local Storage"]:
+        target = os.path.join(profile_dir, "Default", item)
+        if os.path.isfile(target):
+            try:
+                os.remove(target)
+            except Exception:
+                pass
+        elif os.path.isdir(target):
+            shutil.rmtree(target, ignore_errors=True)
+
+def main():
+    browser = find_browser()
+    if not browser:
+        ctypes.windll.user32.MessageBoxW(
+            0,
+            "Google Chrome or Microsoft Edge was not found on this computer.\\nPlease install Google Chrome to launch " + APP_TITLE + ".",
+            APP_TITLE + " - Browser Missing",
+            0x10
+        )
+        sys.exit(1)
+
+    base_app_dir = os.path.join(os.path.expandvars("%LOCALAPPDATA%"), "WebAppKiosks", PROFILE_FOLDER)
+    os.makedirs(base_app_dir, exist_ok=True)
+
+    if USE_ISOLATED:
+        if KILL_EXISTING:
+            kill_previous_instances()
+        if CLEAR_CACHE:
+            clean_profile_cache(base_app_dir)
+
+    launch_target = TARGET_URL
+    if HEALTH_CHECK and not TARGET_URL.lower().startswith("file://"):
+        if not is_url_reachable(TARGET_URL) and USE_FALLBACK:
+            fallback_path = os.path.join(base_app_dir, "offline_guard.html")
+            with open(fallback_path, "wb") as f:
+                f.write(base64.b64decode(FALLBACK_B64))
+            launch_target = "file:///" + fallback_path.replace("\\\\", "/")
+
+    final_args = []
+    for arg in RAW_ARGS:
+        if "__PROFILE_DIR__" in arg:
+            final_args.append(arg.replace("__PROFILE_DIR__", base_app_dir))
+        elif arg == TARGET_URL:
+            final_args.append(launch_target)
+        elif arg.startswith("--app="):
+            final_args.append("--app=" + launch_target)
+        else:
+            final_args.append(arg)
+
+    proc = subprocess.Popen([browser] + final_args)
+    if CLEAR_SESSION and USE_ISOLATED:
+        proc.wait()
+        clean_profile_session(base_app_dir)
+
+if __name__ == "__main__":
+    main()
+"""
+    return source
+
+
+def generate_desktop_shortcut_bat(cfg, target_filename):
+    app_title = cfg.get("app_name", "").strip() or "Web App Kiosk"
+    safe_title = re.sub(r'[\\/:*?"<>|]+', "", app_title)
+    lines = [
+        "@echo off",
+        f'title Create Desktop Shortcut for {safe_title}',
+        f'set "TARGET=%~dp0{target_filename}"',
+        'if not exist "%TARGET%" (',
+        f'    echo Error: Place this script in the same folder as {target_filename}',
+        '    pause',
+        '    exit /b 1',
+        ')',
+        f'powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut([Environment]::GetFolderPath(\'Desktop\') + \'\\{safe_title}.lnk\'); $s.TargetPath = \'%TARGET%\'; $s.WorkingDirectory = \'%~dp0\'; $s.Save()"',
+        f'echo Desktop shortcut created: {safe_title}',
+        'pause'
+    ]
+    return "\r\n".join(lines) + "\r\n"
+
+
+def generate_startup_helper_bat(cfg, target_filename):
+    app_title = cfg.get("app_name", "").strip() or "Web App Kiosk"
+    lines = [
+        "@echo off",
+        f"title Configure Auto-Start on Boot - {app_title}",
+        'set "STARTUP_DIR=%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup"',
+        f'set "SOURCE_FILE=%~dp0{target_filename}"',
+        'if not exist "%SOURCE_FILE%" (',
+        f'    echo Error: Place this installer in the same folder as {target_filename}',
+        '    pause',
+        '    exit /b 1',
+        ')',
+        f'copy /y "%SOURCE_FILE%" "%STARTUP_DIR%\\{target_filename}" >nul',
+        f'echo {app_title} has been installed to Windows Startup.',
+        'pause'
+    ]
+    return "\r\n".join(lines) + "\r\n"
+
+
+def generate_kill_helper_bat(cfg):
+    app_title = cfg.get("app_name", "").strip() or "Web App Kiosk"
+    folder = sanitize_slug(cfg.get("profile_folder", ""))
+    lines = [
+        "@echo off",
+        f"title Close {app_title} Kiosk",
+        f'powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object {{ $_.CommandLine -like \'*{folder}*\' }} | ForEach-Object {{ Stop-Process -Id $_.ProcessId -Force }}"',
+        f"echo Closed all active instances of {app_title}.",
+        "timeout /t 2 /nobreak >nul"
+    ]
+    return "\r\n".join(lines) + "\r\n"
+
+
+def generate_readme_text(cfg, generated_files):
+    client = cfg.get("client_name", "").strip() or "Valued Client"
+    app = cfg.get("app_name", "").strip() or "Web Application"
+    url = cfg.get("url", "").strip()
+    mode = str(cfg.get("launch_mode", "kiosk")).upper()
+    support = cfg.get("support_phone", "").strip()
+    files_list = "\n".join([f"  * {os.path.basename(f)}" for f in generated_files])
+    out_slug = sanitize_slug(cfg.get("output_name", app))
+    return (
+        f"====================================================================\n"
+        f"  {app} - Desktop Client Launcher Package\n"
+        f"  Prepared Exclusively For: {client}\n"
+        f"====================================================================\n\n"
+        f"Application URL : {url}\n"
+        f"Display Mode    : {mode}\n"
+        f"Technical Desk  : {support}\n\n"
+        f"Included Files:\n{files_list}\n\n"
+        f"Quick Deployment Guide:\n"
+        f"  1. Extract all files to a permanent folder (e.g., C:\\{sanitize_slug(app)}\\).\n"
+        f"  2. Double-click the .exe (or .bat) file to launch {app}.\n"
+        f"  3. Optional: Run 'Create_{out_slug}_Desktop_Shortcut.bat' to place an icon on Desktop.\n"
+        f"  4. Optional: Run 'Install_{out_slug}_AutoStart.bat' to launch automatically on Windows boot.\n"
+        f"  5. To exit Full Kiosk mode at any time, press Alt + F4 on your keyboard.\n"
+    )
+
+
+def generate_version_info_file(cfg, work_dir):
+    ver_raw = str(cfg.get("exe_version", "1.0.0.0")).strip()
+    parts = [int(x) for x in re.findall(r"\d+", ver_raw)[:4]]
+    while len(parts) < 4:
+        parts.append(0)
+    v_tuple = f"({parts[0]}, {parts[1]}, {parts[2]}, {parts[3]})"
+    v_str = f"{parts[0]}.{parts[1]}.{parts[2]}.{parts[3]}"
+
+    company = str(cfg.get("exe_company", "")).strip().replace("'", "")
+    product = str(cfg.get("exe_product", "")).strip().replace("'", "")
+    desc = str(cfg.get("exe_desc", "")).strip().replace("'", "")
+    copy_str = str(cfg.get("exe_copyright", "")).strip().replace("'", "")
+    internal = sanitize_slug(cfg.get("output_name", "Launcher"))
+
+    content = f"""VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers={v_tuple},
+    prodvers={v_tuple},
+    mask=0x3f,
+    flags=0x0,
+    OS=0x40004,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0, 0)
+  ),
+  kids=[
+    StringFileInfo(
+      [
+      StringTable(
+        u'040904B0',
+        [StringStruct(u'CompanyName', u'{company}'),
+        StringStruct(u'FileDescription', u'{desc}'),
+        StringStruct(u'FileVersion', u'{v_str}'),
+        StringStruct(u'InternalName', u'{internal}'),
+        StringStruct(u'LegalCopyright', u'{copy_str}'),
+        StringStruct(u'OriginalFilename', u'{internal}.exe'),
+        StringStruct(u'ProductName', u'{product}'),
+        StringStruct(u'ProductVersion', u'{v_str}')])
+      ]),
+    VarFileInfo([VarStruct(u'Translation', [1033, 1200])])
+  ]
+)
+"""
+    ver_file = os.path.join(work_dir, "version_info.txt")
+    with open(ver_file, "w", encoding="utf-8") as f:
+        f.write(content)
+    return ver_file
+
+
+def prepare_ico_file(cfg, work_dir, log_fn=None):
+    src_icon = str(cfg.get("icon_path", "")).strip()
+    if not src_icon or not os.path.isfile(src_icon):
+        return None
+
+    ext = os.path.splitext(src_icon)[1].lower()
+    dest_ico = os.path.join(work_dir, "app_icon.ico")
+    if ext == ".ico":
+        shutil.copy2(src_icon, dest_ico)
+        return dest_ico
+
+    try:
+        from PIL import Image
+        img = Image.open(src_icon).convert("RGBA")
+        img.save(dest_ico, format="ICO", sizes=[(256, 256), (128, 128), (64, 64), (48, 48), (32, 32), (16, 16)])
+        if log_fn:
+            log_fn("Converted logo image to multi-resolution Windows .ICO file.")
+        return dest_ico
+    except Exception as exc:
+        if log_fn:
+            log_fn(f"Icon conversion skipped (install Pillow for image-to-ICO): {exc}")
+        return None
+
+
+def build_deliverables(cfg, log_fn=print):
+    generated_files = []
+    work_dir = None
+    try:
+        out_dir = str(cfg.get("output_dir", "")).strip()
+        if not out_dir:
+            out_dir = os.path.join(os.path.expanduser("~"), "Desktop", "Client_Kiosk_Deliverables")
+        os.makedirs(out_dir, exist_ok=True)
+        base_name = sanitize_slug(cfg.get("output_name", "Client_Launcher"))
+
+        log_fn("----------------------------------------------------")
+        log_fn(f"Building launcher set for: {cfg.get('client_name', 'Client')} -> {cfg.get('app_name', 'WebApp')}")
+
+        bat_filename = f"{base_name}.bat"
+        if cfg.get("gen_bat", True) or cfg.get("gen_vbs", True):
+            bat_path = os.path.join(out_dir, bat_filename)
+            with open(bat_path, "w", encoding="utf-8", newline="") as f:
+                f.write(generate_batch_content(cfg))
+            if cfg.get("gen_bat", True):
+                generated_files.append(bat_path)
+                log_fn(f"  + Created Batch Launcher: {bat_path}")
+
+        if cfg.get("gen_cmd", False):
+            cmd_path = os.path.join(out_dir, f"{base_name}.cmd")
+            with open(cmd_path, "w", encoding="utf-8", newline="") as f:
+                f.write(generate_batch_content(cfg))
+            generated_files.append(cmd_path)
+            log_fn(f"  + Created CMD Launcher: {cmd_path}")
+
+        if cfg.get("gen_vbs", True):
+            vbs_path = os.path.join(out_dir, f"{base_name}_Silent.vbs")
+            with open(vbs_path, "w", encoding="utf-8", newline="") as f:
+                f.write(generate_vbs_content(cfg, bat_filename))
+            generated_files.append(vbs_path)
+            log_fn(f"  + Created Silent VBS Wrapper: {vbs_path}")
+
+        primary_target = os.path.basename(generated_files[0]) if generated_files else bat_filename
+
+        if cfg.get("gen_exe", True):
+            work_dir = tempfile.mkdtemp(prefix="kioskforge_")
+            stub_py = os.path.join(work_dir, f"{base_name}.py")
+            with open(stub_py, "w", encoding="utf-8") as f:
+                f.write(generate_embedded_python_source(cfg))
+
+            ico_path = prepare_ico_file(cfg, work_dir, log_fn)
+            ver_path = generate_version_info_file(cfg, work_dir)
+            dist_dir = os.path.join(work_dir, "dist")
+            build_dir = os.path.join(work_dir, "build")
+
+            pyi_cmd = [
+                sys.executable,
+                "-m",
+                "PyInstaller",
+                "--noconfirm",
+                "--onefile",
+                "--noconsole",
+                "--clean",
+                "--distpath", dist_dir,
+                "--workpath", build_dir,
+                "--specpath", work_dir,
+                "--version-file", ver_path,
+                "--name", base_name
+            ]
+            if ico_path:
+                pyi_cmd.extend(["--icon", ico_path])
+            if cfg.get("uac_admin", False):
+                pyi_cmd.append("--uac-admin")
+            pyi_cmd.append(stub_py)
+
+            log_fn("  * Compiling portable single-file .EXE with PyInstaller...")
+            proc = subprocess.Popen(
+                pyi_cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                creationflags=0x08000000 if os.name == "nt" else 0
+            )
+            for line in proc.stdout:
+                clean = line.strip()
+                if clean and ("INFO:" in clean or "ERROR:" in clean or "WARNING:" in clean):
+                    log_fn(f"    {clean}")
+            proc.wait()
+
+            built_exe = os.path.join(dist_dir, f"{base_name}.exe")
+            if proc.returncode == 0 and os.path.isfile(built_exe):
+                final_exe = os.path.join(out_dir, f"{base_name}.exe")
+                shutil.copy2(built_exe, final_exe)
+                generated_files.insert(0, final_exe)
+                primary_target = os.path.basename(final_exe)
+                log_fn(f"  + Compiled Portable EXE: {final_exe}")
+            else:
+                raise RuntimeError("PyInstaller failed to build the executable. Review console logs.")
+
+        if cfg.get("gen_shortcut_helper", True):
+            sc_bat = os.path.join(out_dir, f"Create_{base_name}_Desktop_Shortcut.bat")
+            with open(sc_bat, "w", encoding="utf-8", newline="") as f:
+                f.write(generate_desktop_shortcut_bat(cfg, primary_target))
+            generated_files.append(sc_bat)
+            log_fn(f"  + Created Desktop Shortcut Helper: {sc_bat}")
+
+        if cfg.get("add_startup_helper", True):
+            st_bat = os.path.join(out_dir, f"Install_{base_name}_AutoStart.bat")
+            with open(st_bat, "w", encoding="utf-8", newline="") as f:
+                f.write(generate_startup_helper_bat(cfg, primary_target))
+            generated_files.append(st_bat)
+            log_fn(f"  + Created Windows Auto-Start Installer: {st_bat}")
+
+        if cfg.get("add_kill_helper", True):
+            kl_bat = os.path.join(out_dir, f"Close_{base_name}_Kiosk.bat")
+            with open(kl_bat, "w", encoding="utf-8", newline="") as f:
+                f.write(generate_kill_helper_bat(cfg))
+            generated_files.append(kl_bat)
+            log_fn(f"  + Created Emergency Kiosk Close Utility: {kl_bat}")
+
+        if cfg.get("gen_zip", True) and generated_files:
+            zip_path = os.path.join(out_dir, f"{base_name}_Client_Deliverable.zip")
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+                for item in generated_files:
+                    zf.write(item, arcname=os.path.basename(item))
+                zf.writestr("README_Client_Instructions.txt", generate_readme_text(cfg, generated_files))
+            log_fn(f"  + Packaged Client Delivery ZIP: {zip_path}")
+
+        log_fn("Build completed cleanly!")
+        return generated_files
+    finally:
+        if work_dir and os.path.isdir(work_dir):
+            shutil.rmtree(work_dir, ignore_errors=True)
+
+
+def run_cli():
+    parser = argparse.ArgumentParser(
+        prog="app.py",
+        description="KioskForge Pro - Enterprise Client Web App & Portable EXE Builder CLI"
+    )
+    parser.add_argument("--gui", action="store_true", help="Launch graphical user interface")
+    parser.add_argument("-l", "--list", "--list-profiles", dest="list_profiles", action="store_true", help="List all saved client profiles in the database")
+    parser.add_argument("-p", "--profile", type=str, help="Name or search pattern for saved client profile in database")
+    parser.add_argument("-b", "--build", action="store_true", help="Build deliverables for selected profile or specified options")
+    parser.add_argument("--build-all", action="store_true", help="Batch build deliverables for all saved profiles in the database")
+    parser.add_argument("--show", action="store_true", help="Display details of specified profile as JSON")
+    parser.add_argument("--delete", type=str, metavar="NAME", help="Delete a profile from the database")
+    parser.add_argument("--import", dest="import_file", type=str, metavar="FILE", help="Import client profiles from a JSON file")
+    parser.add_argument("--export", dest="export_file", type=str, metavar="FILE", help="Export all client profiles to a JSON file")
+    parser.add_argument("--list-presets", action="store_true", help="List all available deployment presets")
+    parser.add_argument("--preset", type=str, help="Apply preset deployment configuration")
+    parser.add_argument("--client", type=str, help="Client / Organization name")
+    parser.add_argument("--app", type=str, help="Web application title")
+    parser.add_argument("--url", type=str, help="Web application URL")
+    parser.add_argument("--output-dir", type=str, help="Destination directory for built files")
+    parser.add_argument("--output-name", type=str, help="Base filename for generated launcher(s)")
+    parser.add_argument("--icon", type=str, help="Path to logo or icon file (.ico, .png, etc.)")
+    parser.add_argument("--browser", choices=["auto", "chrome", "edge", "brave", "Auto", "Chrome", "Edge", "Brave"], help="Target browser engine")
+    parser.add_argument("--mode", choices=["kiosk", "app"], help="Launch mode: kiosk or app")
+    parser.add_argument("--save", action="store_true", help="Save the configuration into the database")
+    parser.add_argument("--no-exe", action="store_true", help="Do not generate portable .EXE")
+    parser.add_argument("--no-bat", action="store_true", help="Do not generate .BAT launcher")
+    parser.add_argument("--no-vbs", action="store_true", help="Do not generate silent .VBS wrapper")
+    parser.add_argument("--no-zip", action="store_true", help="Do not package files into a deliverable ZIP")
+    parser.add_argument("--no-health-check", action="store_true", help="Disable network health check")
+    parser.add_argument("--no-offline-fallback", action="store_true", help="Disable offline fallback screen")
+    parser.add_argument("--extra-flags", type=str, help="Additional Chromium command-line flags")
+
+    args = parser.parse_args()
+    db = load_database()
+
+    if args.gui:
+        initial = None
+        if args.profile:
+            match_key, match_cfg = find_profile(db, args.profile)
+            if match_key and isinstance(match_key, str):
+                initial = match_key
+        root = tk.Tk()
+        app = KioskForgeApp(root, initial_profile=initial)
+        root.mainloop()
+        return
+
+    if args.list_presets:
+        print("\nAvailable Deployment Presets:")
+        print("=" * 80)
+        for name, preset_data in PRESETS.items():
+            print(f"- {name}")
+            print(f"  Mode: {preset_data.get('launch_mode')} | Silent Print: {preset_data.get('kiosk_printing')} | Extra Flags: {preset_data.get('extra_flags') or 'None'}")
+        print("=" * 80)
+        return
+
+    if args.list_profiles:
+        if not db:
+            print(f"No saved client profiles found in database: {CONFIG_FILE}")
+            return
+        print(f"\nSaved Client Profiles ({len(db)} found in {os.path.basename(CONFIG_FILE)}):")
+        print("=" * 80)
+        for idx, (key, cfg) in enumerate(db.items(), start=1):
+            c_name = cfg.get("client_name", "N/A")
+            a_name = cfg.get("app_name", "N/A")
+            u = cfg.get("url", "N/A")
+            m = cfg.get("launch_mode", "kiosk")
+            o = cfg.get("output_dir", "N/A")
+            print(f"[{idx}] {key}")
+            print(f"    Client     : {c_name}")
+            print(f"    Web App    : {a_name}")
+            print(f"    Target URL : {u}")
+            print(f"    Mode       : {m}")
+            print(f"    Output Dir : {o}")
+            print("-" * 80)
+        return
+
+    if args.delete:
+        target = args.delete.strip()
+        match_key, match_cfg = find_profile(db, target)
+        if not match_key or not isinstance(match_key, str):
+            if isinstance(match_key, list):
+                print(f"Error: Ambiguous profile match for '{target}'. Candidates: {match_key}")
+            else:
+                print(f"Error: Profile '{target}' not found in database.")
+            sys.exit(1)
+        del db[match_key]
+        save_database(db)
+        print(f"Successfully deleted profile '{match_key}' from database.")
+        return
+
+    if args.import_file:
+        path = os.path.abspath(args.import_file)
+        if not os.path.isfile(path):
+            print(f"Error: File not found: {path}")
+            sys.exit(1)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                imported = json.load(f)
+            if not isinstance(imported, dict):
+                print(f"Error: Invalid JSON structure in {path}. Expected object.")
+                sys.exit(1)
+            db.update(imported)
+            save_database(db)
+            print(f"Successfully imported {len(imported)} profile(s) from {path}")
+        except Exception as exc:
+            print(f"Import error: {exc}")
+            sys.exit(1)
+        return
+
+    if args.export_file:
+        path = os.path.abspath(args.export_file)
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(db, f, indent=2)
+            print(f"Successfully exported {len(db)} profile(s) to {path}")
+        except Exception as exc:
+            print(f"Export error: {exc}")
+            sys.exit(1)
+        return
+
+    if args.build_all:
+        if not db:
+            print(f"No saved profiles found in database: {CONFIG_FILE}")
+            sys.exit(1)
+        print(f"Starting batch build for {len(db)} profile(s)...")
+        success_count = 0
+        fail_count = 0
+        for idx, (key, cfg) in enumerate(db.items(), start=1):
+            print(f"\n[{idx}/{len(db)}] Compiling: {key}")
+            try:
+                build_deliverables(cfg, log_fn=print)
+                success_count += 1
+            except Exception as exc:
+                print(f"Build failed for {key}: {exc}")
+                fail_count += 1
+        print("\n" + "=" * 80)
+        print(f"Batch build completed: {success_count} succeeded, {fail_count} failed.")
+        print("=" * 80)
+        return
+
+    target_cfg = None
+    profile_key = None
+    if args.profile:
+        match_key, match_cfg = find_profile(db, args.profile)
+        if not match_key or not isinstance(match_key, str):
+            if isinstance(match_key, list):
+                print(f"Error: Ambiguous profile match for '{args.profile}'. Candidates: {match_key}")
+            else:
+                print(f"Error: Profile '{args.profile}' not found in database.")
+                if db:
+                    print(f"Available profiles: {list(db.keys())}")
+            sys.exit(1)
+        profile_key = match_key
+        target_cfg = dict(match_cfg)
+    elif args.url or args.client or args.app:
+        target_cfg = dict(DEFAULT_CONFIG)
+    else:
+        if args.show:
+            print(json.dumps(db, indent=2))
+            return
+        parser.print_help()
+        return
+
+    if args.show:
+        print(json.dumps({profile_key or "Custom": target_cfg}, indent=2))
+        return
+
+    if args.preset:
+        preset_key = None
+        for pk in PRESETS.keys():
+            if pk.lower() == args.preset.lower() or args.preset.lower() in pk.lower():
+                preset_key = pk
+                break
+        if not preset_key:
+            print(f"Error: Preset '{args.preset}' not recognized. Use --list-presets to view options.")
+            sys.exit(1)
+        target_cfg.update(PRESETS[preset_key])
+        print(f"Applied preset: {preset_key}")
+
+    if args.client:
+        target_cfg["client_name"] = args.client.strip()
+    if args.app:
+        target_cfg["app_name"] = args.app.strip()
+        slug = sanitize_slug(args.app.strip())
+        if not args.output_name:
+            target_cfg["output_name"] = f"{slug}_Launcher"
+        target_cfg["profile_folder"] = f"{slug}_Profile"
+        target_cfg["exe_product"] = f"{args.app.strip()} Kiosk"
+    if args.url:
+        target_cfg["url"] = args.url.strip()
+    if args.output_dir:
+        target_cfg["output_dir"] = os.path.abspath(args.output_dir.strip())
+    if args.output_name:
+        target_cfg["output_name"] = args.output_name.strip()
+    if args.icon:
+        target_cfg["icon_path"] = os.path.abspath(args.icon.strip())
+    if args.browser:
+        b_map = {
+            "auto": "Auto (Chrome -> Edge -> Brave)",
+            "chrome": "Google Chrome Only",
+            "edge": "Microsoft Edge Only",
+            "brave": "Brave Browser Only"
+        }
+        target_cfg["browser_target"] = b_map.get(args.browser.lower(), "Auto (Chrome -> Edge -> Brave)")
+    if args.mode:
+        target_cfg["launch_mode"] = args.mode.lower()
+    if args.no_exe:
+        target_cfg["gen_exe"] = False
+    if args.no_bat:
+        target_cfg["gen_bat"] = False
+    if args.no_vbs:
+        target_cfg["gen_vbs"] = False
+    if args.no_zip:
+        target_cfg["gen_zip"] = False
+    if args.no_health_check:
+        target_cfg["health_check"] = False
+    if args.no_offline_fallback:
+        target_cfg["offline_fallback"] = False
+    if args.extra_flags:
+        target_cfg["extra_flags"] = args.extra_flags.strip()
+
+    if args.save:
+        save_key = f"{target_cfg.get('client_name', 'Client')} - {target_cfg.get('app_name', 'WebApp')}"
+        db[save_key] = target_cfg
+        save_database(db)
+        print(f"Saved configuration to database under profile name: '{save_key}'")
+
+    print(f"Selected Profile / Target: {profile_key or target_cfg.get('client_name', 'Custom')}")
+    print(f"Target URL: {target_cfg.get('url')}")
+    print(f"Output Directory: {target_cfg.get('output_dir')}")
+    build_deliverables(target_cfg, log_fn=print)
+
+
 class ToolTip:
     def __init__(self, widget, text, delay=350):
         self.widget = widget
@@ -182,7 +1173,7 @@ class ToolTip:
 
 
 class KioskForgeApp:
-    def __init__(self, root):
+    def __init__(self, root, initial_profile=None):
         self.root = root
         self.root.title(f"{APP_TITLE} v{APP_VERSION}")
         self.root.configure(bg="#f1f5f9")
@@ -199,6 +1190,14 @@ class KioskForgeApp:
         self.init_variables()
         self.build_ui()
         self.bind_live_preview()
+        if initial_profile and initial_profile in self.clients_data:
+            self.var_saved_profile.set(initial_profile)
+            self.apply_profile_dict(self.clients_data[initial_profile])
+        elif self.clients_data:
+            first_key = self.var_saved_profile.get() or sorted(self.clients_data.keys())[0]
+            if first_key in self.clients_data:
+                self.var_saved_profile.set(first_key)
+                self.apply_profile_dict(self.clients_data[first_key])
         self.update_all_previews()
         self.refresh_dependency_status()
         self.audit_installed_browsers()
@@ -389,6 +1388,7 @@ class KioskForgeApp:
         self.cmb_saved.pack(side="left", padx=(0, 6))
         ToolTip(self.cmb_saved, "Select a previously saved client configuration to load, update, or include in batch builds.")
         self.refresh_saved_profiles_dropdown()
+        self.cmb_saved.bind("<<ComboboxSelected>>", lambda e: self.load_selected_profile())
 
         btn_load = ttk.Button(tb_inner, text="Load", style="Secondary.TButton", command=self.load_selected_profile)
         btn_load.pack(side="left", padx=2)
@@ -1038,13 +2038,16 @@ class KioskForgeApp:
         self.log(f"Copied {self.var_preview_type.get()} to clipboard.")
 
     def log(self, message):
+        print(message)
         def _append():
-            self.txt_log.configure(state="normal")
-            ts = time.strftime("%H:%M:%S")
-            self.txt_log.insert("end", f"[{ts}] {message}\n")
-            self.txt_log.see("end")
-            self.txt_log.configure(state="disabled")
-        self.root.after(0, _append)
+            if hasattr(self, "txt_log") and self.txt_log.winfo_exists():
+                self.txt_log.configure(state="normal")
+                ts = time.strftime("%H:%M:%S")
+                self.txt_log.insert("end", f"[{ts}] {message}\n")
+                self.txt_log.see("end")
+                self.txt_log.configure(state="disabled")
+        if hasattr(self, "root") and self.root.winfo_exists():
+            self.root.after(0, _append)
 
     def clear_console_log(self):
         self.txt_log.configure(state="normal")
@@ -1216,416 +2219,34 @@ class KioskForgeApp:
             messagebox.showerror("Launch Error", str(exc))
 
     def prepare_ico_file(self, work_dir):
-        src_icon = self.var_icon_path.get().strip()
-        if not src_icon or not os.path.isfile(src_icon):
-            return None
-
-        ext = os.path.splitext(src_icon)[1].lower()
-        dest_ico = os.path.join(work_dir, "app_icon.ico")
-        if ext == ".ico":
-            shutil.copy2(src_icon, dest_ico)
-            return dest_ico
-
-        try:
-            from PIL import Image
-            img = Image.open(src_icon).convert("RGBA")
-            img.save(dest_ico, format="ICO", sizes=[(256, 256), (128, 128), (64, 64), (48, 48), (32, 32), (16, 16)])
-            self.log("Converted logo image to multi-resolution Windows .ICO file.")
-            return dest_ico
-        except Exception as exc:
-            self.log(f"Icon conversion skipped (install Pillow for image-to-ICO): {exc}")
-            return None
+        return prepare_ico_file(self.get_current_profile_dict(), work_dir, self.log)
 
     def generate_version_info_file(self, work_dir):
-        ver_raw = self.var_exe_version.get().strip()
-        parts = [int(x) for x in re.findall(r"\d+", ver_raw)[:4]]
-        while len(parts) < 4:
-            parts.append(0)
-        v_tuple = f"({parts[0]}, {parts[1]}, {parts[2]}, {parts[3]})"
-        v_str = f"{parts[0]}.{parts[1]}.{parts[2]}.{parts[3]}"
-
-        company = self.var_exe_company.get().strip().replace("'", "")
-        product = self.var_exe_product.get().strip().replace("'", "")
-        desc = self.var_exe_desc.get().strip().replace("'", "")
-        copy_str = self.var_exe_copyright.get().strip().replace("'", "")
-        internal = self.sanitize_slug(self.var_output_name.get())
-
-        content = f"""VSVersionInfo(
-  ffi=FixedFileInfo(
-    filevers={v_tuple},
-    prodvers={v_tuple},
-    mask=0x3f,
-    flags=0x0,
-    OS=0x40004,
-    fileType=0x1,
-    subtype=0x0,
-    date=(0, 0)
-  ),
-  kids=[
-    StringFileInfo(
-      [
-      StringTable(
-        u'040904B0',
-        [StringStruct(u'CompanyName', u'{company}'),
-        StringStruct(u'FileDescription', u'{desc}'),
-        StringStruct(u'FileVersion', u'{v_str}'),
-        StringStruct(u'InternalName', u'{internal}'),
-        StringStruct(u'LegalCopyright', u'{copy_str}'),
-        StringStruct(u'OriginalFilename', u'{internal}.exe'),
-        StringStruct(u'ProductName', u'{product}'),
-        StringStruct(u'ProductVersion', u'{v_str}')])
-      ]),
-    VarFileInfo([VarStruct(u'Translation', [1033, 1200])])
-  ]
-)
-"""
-        ver_file = os.path.join(work_dir, "version_info.txt")
-        with open(ver_file, "w", encoding="utf-8") as f:
-            f.write(content)
-        return ver_file
+        return generate_version_info_file(self.get_current_profile_dict(), work_dir)
 
     def build_offline_fallback_html(self, target_url):
-        app_title = self.var_app_name.get().strip() or "Web Application"
-        client_name = self.var_client_name.get().strip() or "Client Terminal"
-        support = self.var_support_phone.get().strip() or "Technical Support"
-        safe_url = json.dumps(target_url)
-
-        html = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{app_title} - Connection Status</title>
-<style>
-  body {{ margin: 0; font-family: 'Segoe UI', system-ui, sans-serif; background: #f1f5f9; color: #0f172a; display: flex; align-items: center; justify-content: center; height: 100vh; }}
-  .card {{ background: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; padding: 36px 42px; max-width: 480px; text-align: center; box-shadow: 0 10px 25px rgba(15,23,42,0.08); }}
-  .badge {{ display: inline-block; background: #fef3c7; color: #92400e; font-weight: 700; font-size: 12px; padding: 4px 12px; border-radius: 999px; margin-bottom: 14px; }}
-  h1 {{ margin: 0 0 8px; font-size: 22px; }}
-  p {{ color: #475569; font-size: 14px; line-height: 1.5; margin: 0 0 20px; }}
-  .meta {{ background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; font-size: 12px; color: #334155; margin-bottom: 20px; }}
-  button {{ background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 10px 22px; font-size: 14px; font-weight: 600; cursor: pointer; }}
-  button:hover {{ background: #1d4ed8; }}
-</style>
-</head>
-<body>
-  <div class="card">
-    <div class="badge">WAITING FOR NETWORK / SERVER</div>
-    <h1>{app_title}</h1>
-    <p>Unable to reach the application server right now. Check your internet or local network cable. This terminal will reconnect automatically.</p>
-    <div class="meta">
-      <div><strong>Terminal:</strong> {client_name}</div>
-      <div><strong>Support:</strong> {support}</div>
-      <div id="status" style="margin-top:6px;color:#2563eb;font-weight:600;">Retrying connection in 5s...</div>
-    </div>
-    <button onclick="retryNow()">Reconnect Now</button>
-  </div>
-<script>
-  const TARGET_URL = {safe_url};
-  let sec = 5;
-  function retryNow() {{
-    document.getElementById('status').innerText = 'Connecting...';
-    window.location.href = TARGET_URL;
-  }}
-  setInterval(() => {{
-    sec--;
-    if (sec <= 0) {{
-      retryNow();
-      sec = 5;
-    }} else {{
-      document.getElementById('status').innerText = 'Retrying connection in ' + sec + 's...';
-    }}
-  }}, 1000);
-</script>
-</body>
-</html>"""
-        return html
+        return build_offline_fallback_html(self.get_current_profile_dict(), target_url)
 
     def generate_batch_content(self):
-        flags, url = self.build_flag_list()
-        candidates = self.get_browser_candidates()
-        app_title = self.var_app_name.get().strip() or "Web App Kiosk"
-        folder = self.sanitize_slug(self.var_profile_folder.get())
-        parsed = urllib.parse.urlparse(url)
-        host = parsed.hostname or ""
-
-        lines = [
-            "@echo off",
-            "setlocal EnableDelayedExpansion",
-            f"title {app_title}",
-            'set "BROWSER_EXE="'
-        ]
-
-        for p in candidates:
-            lines.append(f'if not defined BROWSER_EXE if exist "{p}" set "BROWSER_EXE={p}"')
-
-        lines.extend([
-            'if not defined BROWSER_EXE (',
-            '    echo Google Chrome or Microsoft Edge was not found on this computer.',
-            '    pause',
-            '    exit /b 1',
-            ')'
-        ])
-
-        if self.var_kill_existing.get() and self.var_isolated_profile.get():
-            lines.append(f'powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object {{ $_.CommandLine -like \'*{folder}*\' }} | ForEach-Object {{ Stop-Process -Id $_.ProcessId -Force }}" >nul 2>&1')
-
-        if self.var_isolated_profile.get():
-            lines.append(f'set "PROFILE_DIR=%LOCALAPPDATA%\\WebAppKiosks\\{folder}"')
-            lines.append('if not exist "%PROFILE_DIR%" mkdir "%PROFILE_DIR%"')
-            if self.var_clear_cache_on_launch.get():
-                lines.append('if exist "%PROFILE_DIR%\\Default\\Cache" rmdir /s /q "%PROFILE_DIR%\\Default\\Cache" >nul 2>&1')
-                lines.append('if exist "%PROFILE_DIR%\\Default\\Code Cache" rmdir /s /q "%PROFILE_DIR%\\Default\\Code Cache" >nul 2>&1')
-
-        if self.var_health_check.get() and host:
-            retries = max(1, int(self.var_health_retries.get() or 3))
-            lines.extend([
-                f'set /a RETRIES={retries}',
-                ':CHECK_NET',
-                f'powershell -NoProfile -Command "try {{ $r = Invoke-WebRequest -Uri \'{url}\' -UseBasicParsing -TimeoutSec 3; exit 0 }} catch {{ exit 1 }}" >nul 2>&1',
-                'if %errorlevel% equ 0 goto LAUNCH_APP',
-                'set /a RETRIES-=1',
-                'if %RETRIES% gtr 0 (',
-                '    timeout /t 2 /nobreak >nul',
-                '    goto CHECK_NET',
-                ')'
-            ])
-
-        lines.append(":LAUNCH_APP")
-        flag_str = " ".join(flags)
-        lines.append(f'start "" "%BROWSER_EXE%" {flag_str}')
-        lines.append("exit /b 0")
-        return "\r\n".join(lines) + "\r\n"
+        return generate_batch_content(self.get_current_profile_dict())
 
     def generate_vbs_content(self, bat_filename):
-        lines = [
-            'Set WshShell = CreateObject("WScript.Shell")',
-            'Set FSO = CreateObject("Scripting.FileSystemObject")',
-            'ScriptDir = FSO.GetParentFolderName(WScript.ScriptFullName)',
-            f'BatPath = ScriptDir & "\\{bat_filename}"',
-            'If FSO.FileExists(BatPath) Then',
-            '    WshShell.Run Chr(34) & BatPath & Chr(34), 0, False',
-            'Else',
-            f'    MsgBox "Missing launcher script: {bat_filename}", 16, "Launcher Error"',
-            'End If'
-        ]
-        return "\r\n".join(lines) + "\r\n"
+        return generate_vbs_content(self.get_current_profile_dict(), bat_filename)
 
     def generate_embedded_python_source(self):
-        flags, url = self.build_flag_list(profile_dir_token="__PROFILE_DIR__")
-        candidates = self.get_browser_candidates()
-        folder = self.sanitize_slug(self.var_profile_folder.get())
-        use_isolated = self.var_isolated_profile.get()
-        kill_existing = self.var_kill_existing.get()
-        app_title = self.var_app_name.get().strip() or "Web App Kiosk"
-        health_check = self.var_health_check.get()
-        retries = max(1, int(self.var_health_retries.get() or 3))
-        use_fallback = self.var_offline_fallback.get()
-        clear_cache = self.var_clear_cache_on_launch.get()
-        clear_session = self.var_clear_session_on_exit.get()
-        fallback_b64 = base64.b64encode(self.build_offline_fallback_html(url).encode("utf-8")).decode("ascii")
-
-        clean_args = []
-        for f in flags:
-            if f.startswith("--user-agent=\""):
-                clean_args.append("--user-agent=" + f[len('--user-agent="'):-1])
-            elif f.startswith('"') and f.endswith('"'):
-                clean_args.append(f[1:-1])
-            else:
-                clean_args.append(f)
-
-        source = f"""import base64
-import ctypes
-import os
-import shutil
-import ssl
-import subprocess
-import sys
-import time
-import urllib.request
-
-CANDIDATES = {json.dumps(candidates)}
-RAW_ARGS = {json.dumps(clean_args)}
-TARGET_URL = {json.dumps(url)}
-PROFILE_FOLDER = {json.dumps(folder)}
-USE_ISOLATED = {repr(use_isolated)}
-KILL_EXISTING = {repr(kill_existing)}
-APP_TITLE = {json.dumps(app_title)}
-HEALTH_CHECK = {repr(health_check)}
-MAX_RETRIES = {retries}
-USE_FALLBACK = {repr(use_fallback)}
-CLEAR_CACHE = {repr(clear_cache)}
-CLEAR_SESSION = {repr(clear_session)}
-FALLBACK_B64 = {json.dumps(fallback_b64)}
-
-def find_browser():
-    for raw in CANDIDATES:
-        expanded = os.path.expandvars(raw)
-        if os.path.isfile(expanded):
-            return expanded
-    return None
-
-def is_url_reachable(target):
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
-    for _ in range(MAX_RETRIES):
-        try:
-            req = urllib.request.Request(target, headers={{"User-Agent": "Mozilla/5.0"}})
-            with urllib.request.urlopen(req, timeout=3, context=ctx):
-                return True
-        except Exception:
-            time.sleep(2)
-    return False
-
-def kill_previous_instances():
-    try:
-        ps_cmd = f"Get-CimInstance Win32_Process | Where-Object {{ $_.CommandLine -like '*{{PROFILE_FOLDER}}*' }} | ForEach-Object {{ Stop-Process -Id $_.ProcessId -Force }}"
-        subprocess.run(
-            ["powershell", "-NoProfile", "-Command", ps_cmd],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            creationflags=0x08000000
-        )
-    except Exception:
-        pass
-
-def clean_profile_cache(profile_dir):
-    for sub in ["Cache", "Code Cache", "GPUCache"]:
-        target = os.path.join(profile_dir, "Default", sub)
-        if os.path.isdir(target):
-            shutil.rmtree(target, ignore_errors=True)
-
-def clean_profile_session(profile_dir):
-    for item in ["Cookies", "Cookies-journal", "Session Storage", "Local Storage"]:
-        target = os.path.join(profile_dir, "Default", item)
-        if os.path.isfile(target):
-            try:
-                os.remove(target)
-            except Exception:
-                pass
-        elif os.path.isdir(target):
-            shutil.rmtree(target, ignore_errors=True)
-
-def main():
-    browser = find_browser()
-    if not browser:
-        ctypes.windll.user32.MessageBoxW(
-            0,
-            "Google Chrome or Microsoft Edge was not found on this computer.\\nPlease install Google Chrome to launch " + APP_TITLE + ".",
-            APP_TITLE + " - Browser Missing",
-            0x10
-        )
-        sys.exit(1)
-
-    base_app_dir = os.path.join(os.path.expandvars("%LOCALAPPDATA%"), "WebAppKiosks", PROFILE_FOLDER)
-    os.makedirs(base_app_dir, exist_ok=True)
-
-    if USE_ISOLATED:
-        if KILL_EXISTING:
-            kill_previous_instances()
-        if CLEAR_CACHE:
-            clean_profile_cache(base_app_dir)
-
-    launch_target = TARGET_URL
-    if HEALTH_CHECK and not TARGET_URL.lower().startswith("file://"):
-        if not is_url_reachable(TARGET_URL) and USE_FALLBACK:
-            fallback_path = os.path.join(base_app_dir, "offline_guard.html")
-            with open(fallback_path, "wb") as f:
-                f.write(base64.b64decode(FALLBACK_B64))
-            launch_target = "file:///" + fallback_path.replace("\\\\", "/")
-
-    final_args = []
-    for arg in RAW_ARGS:
-        if "__PROFILE_DIR__" in arg:
-            final_args.append(arg.replace("__PROFILE_DIR__", base_app_dir))
-        elif arg == TARGET_URL:
-            final_args.append(launch_target)
-        elif arg.startswith("--app="):
-            final_args.append("--app=" + launch_target)
-        else:
-            final_args.append(arg)
-
-    proc = subprocess.Popen([browser] + final_args)
-    if CLEAR_SESSION and USE_ISOLATED:
-        proc.wait()
-        clean_profile_session(base_app_dir)
-
-if __name__ == "__main__":
-    main()
-"""
-        return source
+        return generate_embedded_python_source(self.get_current_profile_dict())
 
     def generate_desktop_shortcut_bat(self, target_filename):
-        app_title = self.var_app_name.get().strip() or "Web App Kiosk"
-        safe_title = re.sub(r'[\\/:*?"<>|]+', "", app_title)
-        lines = [
-            "@echo off",
-            f'title Create Desktop Shortcut for {safe_title}',
-            f'set "TARGET=%~dp0{target_filename}"',
-            'if not exist "%TARGET%" (',
-            f'    echo Error: Place this script in the same folder as {target_filename}',
-            '    pause',
-            '    exit /b 1',
-            ')',
-            f'powershell -NoProfile -Command "$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut([Environment]::GetFolderPath(\'Desktop\') + \'\\{safe_title}.lnk\'); $s.TargetPath = \'%TARGET%\'; $s.WorkingDirectory = \'%~dp0\'; $s.Save()"',
-            f'echo Desktop shortcut created: {safe_title}',
-            'pause'
-        ]
-        return "\r\n".join(lines) + "\r\n"
+        return generate_desktop_shortcut_bat(self.get_current_profile_dict(), target_filename)
 
     def generate_startup_helper_bat(self, target_filename):
-        app_title = self.var_app_name.get().strip() or "Web App Kiosk"
-        lines = [
-            "@echo off",
-            f"title Configure Auto-Start on Boot - {app_title}",
-            'set "STARTUP_DIR=%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup"',
-            f'set "SOURCE_FILE=%~dp0{target_filename}"',
-            'if not exist "%SOURCE_FILE%" (',
-            f'    echo Error: Place this installer in the same folder as {target_filename}',
-            '    pause',
-            '    exit /b 1',
-            ')',
-            f'copy /y "%SOURCE_FILE%" "%STARTUP_DIR%\\{target_filename}" >nul',
-            f'echo {app_title} has been installed to Windows Startup.',
-            'pause'
-        ]
-        return "\r\n".join(lines) + "\r\n"
+        return generate_startup_helper_bat(self.get_current_profile_dict(), target_filename)
 
     def generate_kill_helper_bat(self):
-        app_title = self.var_app_name.get().strip() or "Web App Kiosk"
-        folder = self.sanitize_slug(self.var_profile_folder.get())
-        lines = [
-            "@echo off",
-            f"title Close {app_title} Kiosk",
-            f'powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object {{ $_.CommandLine -like \'*{folder}*\' }} | ForEach-Object {{ Stop-Process -Id $_.ProcessId -Force }}"',
-            f"echo Closed all active instances of {app_title}.",
-            "timeout /t 2 /nobreak >nul"
-        ]
-        return "\r\n".join(lines) + "\r\n"
+        return generate_kill_helper_bat(self.get_current_profile_dict())
 
     def generate_readme_text(self, generated_files):
-        client = self.var_client_name.get().strip() or "Valued Client"
-        app = self.var_app_name.get().strip() or "Web Application"
-        url = self.var_url.get().strip()
-        mode = self.var_launch_mode.get().upper()
-        support = self.var_support_phone.get().strip()
-        files_list = "\n".join([f"  * {os.path.basename(f)}" for f in generated_files])
-        return (
-            f"====================================================================\n"
-            f"  {app} - Desktop Client Launcher Package\n"
-            f"  Prepared Exclusively For: {client}\n"
-            f"====================================================================\n\n"
-            f"Application URL : {url}\n"
-            f"Display Mode    : {mode}\n"
-            f"Technical Desk  : {support}\n\n"
-            f"Included Files:\n{files_list}\n\n"
-            f"Quick Deployment Guide:\n"
-            f"  1. Extract all files to a permanent folder (e.g., C:\\{self.sanitize_slug(app)}\\).\n"
-            f"  2. Double-click the .exe (or .bat) file to launch {app}.\n"
-            f"  3. Optional: Run 'Create_Desktop_Shortcut.bat' to place an icon on Desktop.\n"
-            f"  4. Optional: Run 'Install_AutoStart.bat' to launch automatically on Windows boot.\n"
-            f"  5. To exit Full Kiosk mode at any time, press Alt + F4 on your keyboard.\n"
-        )
+        return generate_readme_text(self.get_current_profile_dict(), generated_files)
 
     def start_generation(self):
         if self.is_building:
@@ -1667,14 +2288,18 @@ if __name__ == "__main__":
                 self.log("====================================================")
                 self.log(f"STARTING BATCH BUILD FOR {len(keys)} CLIENT PROFILE(S)")
                 for idx, key in enumerate(keys, start=1):
-                    self.log(f"\n[{idx}/{len(keys)}] Loading profile: {key}")
+                    self.log(f"\n[{idx}/{len(keys)}] Loading and compiling profile: {key}")
+                    cfg = self.clients_data.get(key)
+                    if not cfg:
+                        continue
                     self.root.after(0, lambda k=key: self.apply_profile_dict(self.clients_data[k]))
-                    time.sleep(0.25)
-                    self.build_single_client_worker(show_popup=False)
+                    build_deliverables(cfg, log_fn=self.log)
                 self.log("\nALL BATCH BUILDS COMPLETED SUCCESSFULLY!")
-                self.root.after(0, lambda: messagebox.showinfo("Batch Build Complete", f"Successfully compiled {len(keys)} client launcher packages!"))
+                count = len(keys)
+                self.root.after(0, lambda n=count: messagebox.showinfo("Batch Build Complete", f"Successfully compiled {n} client launcher packages!"))
             except Exception as exc:
-                self.log(f"BATCH BUILD ERROR: {exc}")
+                err_msg = str(exc)
+                self.log(f"BATCH BUILD ERROR: {err_msg}")
             finally:
                 self.is_building = False
                 self.root.after(0, lambda: self.btn_generate.configure(state="normal", text="Build & Package Client Launcher(s)"))
@@ -1683,153 +2308,85 @@ if __name__ == "__main__":
         threading.Thread(target=_batch_worker, daemon=True).start()
 
     def build_single_client_worker(self, show_popup=True):
-        generated_files = []
-        work_dir = None
         try:
-            out_dir = self.var_output_dir.get().strip()
-            os.makedirs(out_dir, exist_ok=True)
-            base_name = self.sanitize_slug(self.var_output_name.get())
-
-            self.log("----------------------------------------------------")
-            self.log(f"Building launcher set for: {self.var_client_name.get()} -> {self.var_app_name.get()}")
-
-            bat_filename = f"{base_name}.bat"
-            if self.var_gen_bat.get() or self.var_gen_vbs.get():
-                bat_path = os.path.join(out_dir, bat_filename)
-                with open(bat_path, "w", encoding="utf-8", newline="") as f:
-                    f.write(self.generate_batch_content())
-                if self.var_gen_bat.get():
-                    generated_files.append(bat_path)
-                    self.log(f"  + Created Batch Launcher: {bat_path}")
-
-            if self.var_gen_cmd.get():
-                cmd_path = os.path.join(out_dir, f"{base_name}.cmd")
-                with open(cmd_path, "w", encoding="utf-8", newline="") as f:
-                    f.write(self.generate_batch_content())
-                generated_files.append(cmd_path)
-                self.log(f"  + Created CMD Launcher: {cmd_path}")
-
-            if self.var_gen_vbs.get():
-                vbs_path = os.path.join(out_dir, f"{base_name}_Silent.vbs")
-                with open(vbs_path, "w", encoding="utf-8", newline="") as f:
-                    f.write(self.generate_vbs_content(bat_filename))
-                generated_files.append(vbs_path)
-                self.log(f"  + Created Silent VBS Wrapper: {vbs_path}")
-
-            primary_target = os.path.basename(generated_files[0]) if generated_files else bat_filename
-
-            if self.var_gen_exe.get():
-                work_dir = tempfile.mkdtemp(prefix="kioskforge_")
-                stub_py = os.path.join(work_dir, f"{base_name}.py")
-                with open(stub_py, "w", encoding="utf-8") as f:
-                    f.write(self.generate_embedded_python_source())
-
-                ico_path = self.prepare_ico_file(work_dir)
-                ver_path = self.generate_version_info_file(work_dir)
-                dist_dir = os.path.join(work_dir, "dist")
-                build_dir = os.path.join(work_dir, "build")
-
-                pyi_cmd = [
-                    sys.executable,
-                    "-m",
-                    "PyInstaller",
-                    "--noconfirm",
-                    "--onefile",
-                    "--noconsole",
-                    "--clean",
-                    "--distpath", dist_dir,
-                    "--workpath", build_dir,
-                    "--specpath", work_dir,
-                    "--version-file", ver_path,
-                    "--name", base_name
-                ]
-                if ico_path:
-                    pyi_cmd.extend(["--icon", ico_path])
-                if self.var_uac_admin.get():
-                    pyi_cmd.append("--uac-admin")
-                pyi_cmd.append(stub_py)
-
-                self.log("  * Compiling portable single-file .EXE with PyInstaller...")
-                proc = subprocess.Popen(
-                    pyi_cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    creationflags=0x08000000 if os.name == "nt" else 0
-                )
-                for line in proc.stdout:
-                    clean = line.strip()
-                    if clean and ("INFO:" in clean or "ERROR:" in clean or "WARNING:" in clean):
-                        self.log(f"    {clean}")
-                proc.wait()
-
-                built_exe = os.path.join(dist_dir, f"{base_name}.exe")
-                if proc.returncode == 0 and os.path.isfile(built_exe):
-                    final_exe = os.path.join(out_dir, f"{base_name}.exe")
-                    shutil.copy2(built_exe, final_exe)
-                    generated_files.insert(0, final_exe)
-                    primary_target = os.path.basename(final_exe)
-                    self.log(f"  + Compiled Portable EXE: {final_exe}")
-                else:
-                    raise RuntimeError("PyInstaller failed to build the executable. Review console logs.")
-
-            if self.var_gen_shortcut_helper.get():
-                sc_bat = os.path.join(out_dir, f"Create_{base_name}_Desktop_Shortcut.bat")
-                with open(sc_bat, "w", encoding="utf-8", newline="") as f:
-                    f.write(self.generate_desktop_shortcut_bat(primary_target))
-                generated_files.append(sc_bat)
-                self.log(f"  + Created Desktop Shortcut Helper: {sc_bat}")
-
-            if self.var_add_startup_helper.get():
-                st_bat = os.path.join(out_dir, f"Install_{base_name}_AutoStart.bat")
-                with open(st_bat, "w", encoding="utf-8", newline="") as f:
-                    f.write(self.generate_startup_helper_bat(primary_target))
-                generated_files.append(st_bat)
-                self.log(f"  + Created Windows Auto-Start Installer: {st_bat}")
-
-            if self.var_add_kill_helper.get():
-                kl_bat = os.path.join(out_dir, f"Close_{base_name}_Kiosk.bat")
-                with open(kl_bat, "w", encoding="utf-8", newline="") as f:
-                    f.write(self.generate_kill_helper_bat())
-                generated_files.append(kl_bat)
-                self.log(f"  + Created Emergency Kiosk Close Utility: {kl_bat}")
-
-            if self.var_gen_zip.get() and generated_files:
-                zip_path = os.path.join(out_dir, f"{base_name}_Client_Deliverable.zip")
-                with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-                    for item in generated_files:
-                        zf.write(item, arcname=os.path.basename(item))
-                    zf.writestr("README_Client_Instructions.txt", self.generate_readme_text(generated_files))
-                self.log(f"  + Packaged Client Delivery ZIP: {zip_path}")
-
-            self.log("Build completed cleanly!")
+            cfg = self.get_current_profile_dict()
+            generated_files = build_deliverables(cfg, log_fn=self.log)
             if show_popup:
-                self.root.after(0, lambda: messagebox.showinfo("Build Successful", f"Generated {len(generated_files)} deliverable file(s) in:\n{out_dir}"))
-
+                out_dir = cfg.get("output_dir", "")
+                count = len(generated_files)
+                self.root.after(0, lambda n=count, d=out_dir: messagebox.showinfo("Build Successful", f"Generated {n} deliverable file(s) in:\n{d}"))
         except Exception as exc:
-            self.log(f"BUILD ERROR: {exc}")
+            err_msg = str(exc)
+            self.log(f"BUILD ERROR: {err_msg}")
             if show_popup:
-                self.root.after(0, lambda: messagebox.showerror("Build Failed", str(exc)))
+                self.root.after(0, lambda err=err_msg: messagebox.showerror("Build Failed", err))
         finally:
-            if work_dir and os.path.isdir(work_dir):
-                shutil.rmtree(work_dir, ignore_errors=True)
             if show_popup:
                 self.is_building = False
                 self.root.after(0, lambda: self.btn_generate.configure(state="normal", text="Build & Package Client Launcher(s)"))
 
+    def get_current_profile_dict(self):
+        return {
+            "client_name": self.var_client_name.get().strip(),
+            "app_name": self.var_app_name.get().strip(),
+            "url": self.var_url.get().strip(),
+            "output_name": self.var_output_name.get().strip(),
+            "output_dir": self.var_output_dir.get().strip(),
+            "icon_path": self.var_icon_path.get().strip(),
+            "browser_target": self.var_browser_target.get(),
+            "launch_mode": self.var_launch_mode.get(),
+            "kiosk_printing": bool(self.var_kiosk_printing.get()),
+            "isolated_profile": bool(self.var_isolated_profile.get()),
+            "profile_folder": self.var_profile_folder.get().strip(),
+            "incognito": bool(self.var_incognito.get()),
+            "disable_pinch": bool(self.var_disable_pinch.get()),
+            "disable_swipe_nav": bool(self.var_disable_swipe_nav.get()),
+            "no_first_run": bool(self.var_no_first_run.get()),
+            "suppress_dialogs": bool(self.var_suppress_dialogs.get()),
+            "autoplay_media": bool(self.var_autoplay_media.get()),
+            "disable_translate": bool(self.var_disable_translate.get()),
+            "start_maximized": bool(self.var_start_maximized.get()),
+            "start_fullscreen": bool(self.var_start_fullscreen.get()),
+            "disable_extensions": bool(self.var_disable_extensions.get()),
+            "custom_geometry": bool(self.var_custom_geometry.get()),
+            "win_width": str(self.var_win_width.get()),
+            "win_height": str(self.var_win_height.get()),
+            "win_x": str(self.var_win_x.get()),
+            "win_y": str(self.var_win_y.get()),
+            "scale_factor": str(self.var_scale_factor.get()),
+            "extra_flags": self.var_extra_flags.get().strip(),
+            "health_check": bool(self.var_health_check.get()),
+            "health_retries": str(self.var_health_retries.get()),
+            "offline_fallback": bool(self.var_offline_fallback.get()),
+            "support_phone": self.var_support_phone.get().strip(),
+            "ignore_cert_errors": bool(self.var_ignore_cert_errors.get()),
+            "clear_cache_on_launch": bool(self.var_clear_cache_on_launch.get()),
+            "clear_session_on_exit": bool(self.var_clear_session_on_exit.get()),
+            "proxy_server": self.var_proxy_server.get().strip(),
+            "user_agent": self.var_user_agent.get().strip(),
+            "exe_company": self.var_exe_company.get().strip(),
+            "exe_product": self.var_exe_product.get().strip(),
+            "exe_desc": self.var_exe_desc.get().strip(),
+            "exe_version": str(self.var_exe_version.get().strip() or "1.0.0.0"),
+            "exe_copyright": self.var_exe_copyright.get().strip(),
+            "uac_admin": bool(self.var_uac_admin.get()),
+            "gen_exe": bool(self.var_gen_exe.get()),
+            "gen_bat": bool(self.var_gen_bat.get()),
+            "gen_cmd": bool(self.var_gen_cmd.get()),
+            "gen_vbs": bool(self.var_gen_vbs.get()),
+            "gen_shortcut_helper": bool(self.var_gen_shortcut_helper.get()),
+            "add_startup_helper": bool(self.var_add_startup_helper.get()),
+            "add_kill_helper": bool(self.var_add_kill_helper.get()),
+            "gen_zip": bool(self.var_gen_zip.get()),
+            "kill_existing": bool(self.var_kill_existing.get())
+        }
+
     def load_clients_data(self):
-        if os.path.isfile(CONFIG_FILE):
-            try:
-                with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except Exception:
-                return {}
-        return {}
+        return load_database()
 
     def save_clients_data(self):
         try:
-            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-                json.dump(self.clients_data, f, indent=2)
+            save_database(self.clients_data)
         except Exception as exc:
             self.log(f"Error saving database: {exc}")
 
@@ -1850,65 +2407,12 @@ if __name__ == "__main__":
         client = self.var_client_name.get().strip() or "Client"
         app = self.var_app_name.get().strip() or "WebApp"
         key = f"{client} - {app}"
-
-        self.clients_data[key] = {
-            "client_name": self.var_client_name.get(),
-            "app_name": self.var_app_name.get(),
-            "url": self.var_url.get(),
-            "output_name": self.var_output_name.get(),
-            "output_dir": self.var_output_dir.get(),
-            "icon_path": self.var_icon_path.get(),
-            "browser_target": self.var_browser_target.get(),
-            "launch_mode": self.var_launch_mode.get(),
-            "kiosk_printing": self.var_kiosk_printing.get(),
-            "isolated_profile": self.var_isolated_profile.get(),
-            "profile_folder": self.var_profile_folder.get(),
-            "incognito": self.var_incognito.get(),
-            "disable_pinch": self.var_disable_pinch.get(),
-            "disable_swipe_nav": self.var_disable_swipe_nav.get(),
-            "no_first_run": self.var_no_first_run.get(),
-            "suppress_dialogs": self.var_suppress_dialogs.get(),
-            "autoplay_media": self.var_autoplay_media.get(),
-            "disable_translate": self.var_disable_translate.get(),
-            "start_maximized": self.var_start_maximized.get(),
-            "start_fullscreen": self.var_start_fullscreen.get(),
-            "disable_extensions": self.var_disable_extensions.get(),
-            "custom_geometry": self.var_custom_geometry.get(),
-            "win_width": self.var_win_width.get(),
-            "win_height": self.var_win_height.get(),
-            "win_x": self.var_win_x.get(),
-            "win_y": self.var_win_y.get(),
-            "scale_factor": self.var_scale_factor.get(),
-            "extra_flags": self.var_extra_flags.get(),
-            "health_check": self.var_health_check.get(),
-            "health_retries": self.var_health_retries.get(),
-            "offline_fallback": self.var_offline_fallback.get(),
-            "support_phone": self.var_support_phone.get(),
-            "ignore_cert_errors": self.var_ignore_cert_errors.get(),
-            "clear_cache_on_launch": self.var_clear_cache_on_launch.get(),
-            "clear_session_on_exit": self.var_clear_session_on_exit.get(),
-            "proxy_server": self.var_proxy_server.get(),
-            "user_agent": self.var_user_agent.get(),
-            "exe_company": self.var_exe_company.get(),
-            "exe_product": self.var_exe_product.get(),
-            "exe_desc": self.var_exe_desc.get(),
-            "exe_version": self.var_exe_version.get(),
-            "exe_copyright": self.var_exe_copyright.get(),
-            "uac_admin": self.var_uac_admin.get(),
-            "gen_exe": self.var_gen_exe.get(),
-            "gen_bat": self.var_gen_bat.get(),
-            "gen_cmd": self.var_gen_cmd.get(),
-            "gen_vbs": self.var_gen_vbs.get(),
-            "gen_shortcut_helper": self.var_gen_shortcut_helper.get(),
-            "add_startup_helper": self.var_add_startup_helper.get(),
-            "add_kill_helper": self.var_add_kill_helper.get(),
-            "gen_zip": self.var_gen_zip.get(),
-            "kill_existing": self.var_kill_existing.get()
-        }
+        self.clients_data[key] = self.get_current_profile_dict()
         self.save_clients_data()
         self.var_saved_profile.set(key)
         self.refresh_saved_profiles_dropdown()
         self.log(f"Saved client profile: {key}")
+        messagebox.showinfo("Profile Saved", f"Profile '{key}' saved successfully to database.")
 
     def apply_profile_dict(self, data):
         self.var_client_name.set(data.get("client_name", ""))
@@ -1935,14 +2439,14 @@ if __name__ == "__main__":
         self.var_start_fullscreen.set(data.get("start_fullscreen", False))
         self.var_disable_extensions.set(data.get("disable_extensions", False))
         self.var_custom_geometry.set(data.get("custom_geometry", False))
-        self.var_win_width.set(data.get("win_width", "1366"))
-        self.var_win_height.set(data.get("win_height", "768"))
-        self.var_win_x.set(data.get("win_x", "0"))
-        self.var_win_y.set(data.get("win_y", "0"))
-        self.var_scale_factor.set(data.get("scale_factor", "1.0"))
+        self.var_win_width.set(str(data.get("win_width", "1366")))
+        self.var_win_height.set(str(data.get("win_height", "768")))
+        self.var_win_x.set(str(data.get("win_x", "0")))
+        self.var_win_y.set(str(data.get("win_y", "0")))
+        self.var_scale_factor.set(str(data.get("scale_factor", "1.0")))
         self.var_extra_flags.set(data.get("extra_flags", ""))
         self.var_health_check.set(data.get("health_check", True))
-        self.var_health_retries.set(data.get("health_retries", "3"))
+        self.var_health_retries.set(str(data.get("health_retries", "3")))
         self.var_offline_fallback.set(data.get("offline_fallback", True))
         self.var_support_phone.set(data.get("support_phone", ""))
         self.var_ignore_cert_errors.set(data.get("ignore_cert_errors", False))
@@ -1953,7 +2457,7 @@ if __name__ == "__main__":
         self.var_exe_company.set(data.get("exe_company", ""))
         self.var_exe_product.set(data.get("exe_product", ""))
         self.var_exe_desc.set(data.get("exe_desc", ""))
-        self.var_exe_version.set(data.get("exe_version", "1.0.0.0"))
+        self.var_exe_version.set(str(data.get("exe_version", "1.0.0.0")))
         self.var_exe_copyright.set(data.get("exe_copyright", ""))
         self.var_uac_admin.set(data.get("uac_admin", False))
         self.var_gen_exe.set(data.get("gen_exe", True))
@@ -1965,6 +2469,8 @@ if __name__ == "__main__":
         self.var_add_kill_helper.set(data.get("add_kill_helper", True))
         self.var_gen_zip.set(data.get("gen_zip", True))
         self.var_kill_existing.set(data.get("kill_existing", True))
+        if hasattr(self, "txt_preview"):
+            self.update_all_previews()
 
     def load_selected_profile(self):
         key = self.var_saved_profile.get()
@@ -1976,12 +2482,19 @@ if __name__ == "__main__":
 
     def delete_selected_profile(self):
         key = self.var_saved_profile.get()
-        if key in self.clients_data:
-            del self.clients_data[key]
-            self.save_clients_data()
-            self.var_saved_profile.set("")
-            self.refresh_saved_profiles_dropdown()
-            self.log(f"Deleted profile: {key}")
+        if not key or key not in self.clients_data:
+            return
+        if not messagebox.askyesno("Confirm Delete", f"Are you sure you want to delete profile:\n'{key}'?"):
+            return
+        del self.clients_data[key]
+        self.save_clients_data()
+        self.var_saved_profile.set("")
+        self.refresh_saved_profiles_dropdown()
+        if self.clients_data:
+            first_key = sorted(self.clients_data.keys())[0]
+            self.var_saved_profile.set(first_key)
+            self.apply_profile_dict(self.clients_data[first_key])
+        self.log(f"Deleted profile: {key}")
 
     def import_profiles_json(self):
         path = filedialog.askopenfilename(title="Import Client Profiles JSON", filetypes=[("JSON Files", "*.json")])
@@ -2010,7 +2523,18 @@ if __name__ == "__main__":
             messagebox.showerror("Export Error", str(exc))
 
 
+def main():
+    if len(sys.argv) > 1 and not (len(sys.argv) == 2 and sys.argv[1].lower() in ["--gui", "-g"]):
+        run_cli()
+    elif len(sys.argv) == 2 and sys.argv[1].lower() in ["--gui", "-g"]:
+        root = tk.Tk()
+        app = KioskForgeApp(root)
+        root.mainloop()
+    else:
+        root = tk.Tk()
+        app = KioskForgeApp(root)
+        root.mainloop()
+
+
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = KioskForgeApp(root)
-    root.mainloop()
+    main()
