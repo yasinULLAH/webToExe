@@ -76,7 +76,7 @@ def build_resource(version: tuple[int, int, int, int]) -> str:
 
 
 def main() -> int:
-    source = Path(sys.argv[1] if len(sys.argv) > 1 else "app.py")
+    source = Path(sys.argv[1] if len(sys.argv) > 1 else "app.pyw")
     output = Path(sys.argv[2] if len(sys.argv) > 2 else "version_info.txt")
 
     if not source.is_file():

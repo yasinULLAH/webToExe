@@ -42,9 +42,9 @@ jobs:
         id: meta
         shell: pwsh
         run: |
-          $src = Get-Content -Path 'app.py' -Raw
+          $src = Get-Content -Path 'app.pyw' -Raw
           $m = [regex]::Match($src, 'APP_VERSION\s*=\s*"([0-9]+(?:\.[0-9]+)*)"')
-          if (-not $m.Success) { throw 'Could not read APP_VERSION from app.py' }
+          if (-not $m.Success) { throw 'Could not read APP_VERSION from app.pyw' }
 
           $ver = $m.Groups[1].Value
           $short = $env:GITHUB_SHA.Substring(0, 7)
@@ -54,7 +54,7 @@ jobs:
           "tag=v$ver-build.$($env:GITHUB_RUN_NUMBER)" >> $env:GITHUB_OUTPUT
 
       - name: Generate Windows version resource
-        run: python .github/scripts/gen_version_info.py app.py version_info.txt
+        run: python .github/scripts/gen_version_info.py app.pyw version_info.txt
 
       - name: Compile portable single-file EXE
         shell: pwsh
@@ -71,7 +71,7 @@ jobs:
             $pyiArgs += @('--icon', 'assets/icon.ico')
           }
 
-          python -m PyInstaller @pyiArgs app.py
+          python -m PyInstaller @pyiArgs app.pyw
 
           if (-not (Test-Path 'dist/KioskForgePro.exe')) {
             throw 'Build failed: dist/KioskForgePro.exe was not produced.'

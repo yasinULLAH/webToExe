@@ -258,8 +258,10 @@ def build_flag_list(cfg, profile_dir_token=None, target_url_override=None):
 
     if mode == "kiosk":
         flags.append("--kiosk")
+        flags.append("--new-window")
     elif mode == "app":
         flags.append(f"--app={url}")
+        flags.append("--new-window")
 
     if cfg.get("kiosk_printing", False):
         flags.append("--kiosk-printing")
@@ -267,7 +269,7 @@ def build_flag_list(cfg, profile_dir_token=None, target_url_override=None):
     if cfg.get("isolated_profile", True):
         folder = sanitize_slug(cfg.get("profile_folder", ""))
         if profile_dir_token:
-            flags.append(f'--user-data-dir="{profile_dir_token}"')
+            flags.append(f"--user-data-dir={profile_dir_token}")
         else:
             flags.append(f'--user-data-dir="%LOCALAPPDATA%\\WebAppKiosks\\{folder}"')
 
@@ -419,6 +421,8 @@ def generate_batch_content(cfg):
     if cfg.get("isolated_profile", True):
         lines.append(f'set "PROFILE_DIR=%LOCALAPPDATA%\\WebAppKiosks\\{folder}"')
         lines.append('if not exist "%PROFILE_DIR%" mkdir "%PROFILE_DIR%"')
+        lines.append('if exist "%PROFILE_DIR%\\SingletonLock" del /f /q "%PROFILE_DIR%\\SingletonLock" >nul 2>&1')
+        lines.append('if exist "%PROFILE_DIR%\\lockfile" del /f /q "%PROFILE_DIR%\\lockfile" >nul 2>&1')
         if cfg.get("clear_cache_on_launch", False):
             lines.append('if exist "%PROFILE_DIR%\\Default\\Cache" rmdir /s /q "%PROFILE_DIR%\\Default\\Cache" >nul 2>&1')
             lines.append('if exist "%PROFILE_DIR%\\Default\\Code Cache" rmdir /s /q "%PROFILE_DIR%\\Default\\Code Cache" >nul 2>&1')
@@ -475,8 +479,10 @@ def generate_embedded_python_source(cfg):
 
     clean_args = []
     for f in flags:
-        if f.startswith('--user-agent="'):
+        if f.startswith('--user-agent="') and f.endswith('"'):
             clean_args.append("--user-agent=" + f[len('--user-agent="'):-1])
+        elif f.startswith('--user-data-dir="') and f.endswith('"'):
+            clean_args.append("--user-data-dir=" + f[len('--user-data-dir="'):-1])
         elif f.startswith('"') and f.endswith('"'):
             clean_args.append(f[1:-1])
         else:
@@ -528,7 +534,7 @@ def is_url_reachable(target):
             time.sleep(2)
     return False
 
-def kill_previous_instances():
+def kill_previous_instances(profile_dir):
     try:
 {ps_line}
         subprocess.run(
@@ -539,6 +545,13 @@ def kill_previous_instances():
         )
     except Exception:
         pass
+    for lock in ["SingletonLock", "SingletonCookie", "SingletonSocket", "lockfile"]:
+        lp = os.path.join(profile_dir, lock)
+        if os.path.exists(lp):
+            try:
+                os.remove(lp)
+            except Exception:
+                pass
 
 def clean_profile_cache(profile_dir):
     for sub in ["Cache", "Code Cache", "GPUCache"]:
@@ -573,7 +586,7 @@ def main():
 
     if USE_ISOLATED:
         if KILL_EXISTING:
-            kill_previous_instances()
+            kill_previous_instances(base_app_dir)
         if CLEAR_CACHE:
             clean_profile_cache(base_app_dir)
 
@@ -586,15 +599,30 @@ def main():
             launch_target = "file:///" + fallback_path.replace("\\\\", "/")
 
     final_args = []
+    has_user_data_dir = False
     for arg in RAW_ARGS:
         if "__PROFILE_DIR__" in arg:
-            final_args.append(arg.replace("__PROFILE_DIR__", base_app_dir))
+            clean_dir = base_app_dir.strip('"')
+            final_args.append("--user-data-dir=" + clean_dir)
+            has_user_data_dir = True
+        elif arg.startswith('--user-data-dir="') and arg.endswith('"'):
+            clean_dir = arg[len('--user-data-dir="'):-1].strip('"')
+            final_args.append("--user-data-dir=" + clean_dir)
+            has_user_data_dir = True
+        elif arg.startswith("--user-data-dir="):
+            clean_dir = arg.split("=", 1)[1].strip('"')
+            final_args.append("--user-data-dir=" + clean_dir)
+            has_user_data_dir = True
         elif arg == TARGET_URL:
             final_args.append(launch_target)
         elif arg.startswith("--app="):
             final_args.append("--app=" + launch_target)
         else:
             final_args.append(arg)
+
+    if USE_ISOLATED and not has_user_data_dir:
+        clean_dir = base_app_dir.strip('"')
+        final_args.insert(1, "--user-data-dir=" + clean_dir)
 
     proc = subprocess.Popen([browser] + final_args)
     if CLEAR_SESSION and USE_ISOLATED:
@@ -1945,8 +1973,10 @@ class KioskForgeApp:
 
         if mode == "kiosk":
             flags.append("--kiosk")
+            flags.append("--new-window")
         elif mode == "app":
             flags.append(f"--app={url}")
+            flags.append("--new-window")
 
         if self.var_kiosk_printing.get():
             flags.append("--kiosk-printing")
@@ -1954,7 +1984,7 @@ class KioskForgeApp:
         if self.var_isolated_profile.get():
             folder = self.sanitize_slug(self.var_profile_folder.get())
             if profile_dir_token:
-                flags.append(f'--user-data-dir="{profile_dir_token}"')
+                flags.append(f"--user-data-dir={profile_dir_token}")
             else:
                 flags.append(f'--user-data-dir="%LOCALAPPDATA%\\WebAppKiosks\\{folder}"')
 
@@ -2202,7 +2232,9 @@ class KioskForgeApp:
 
         raw_args = []
         for f in flags:
-            if f.startswith('--user-data-dir="'):
+            if f.startswith('--user-data-dir="') and f.endswith('"'):
+                raw_args.append(f"--user-data-dir={local_profile}")
+            elif f.startswith("--user-data-dir="):
                 raw_args.append(f"--user-data-dir={local_profile}")
             elif f.startswith("--user-agent=\""):
                 raw_args.append("--user-agent=" + f[len('--user-agent="'):-1])
