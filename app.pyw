@@ -159,7 +159,7 @@ DEFAULT_CONFIG = {
     "win_y": "0",
     "scale_factor": "1.0",
     "extra_flags": "--disable-print-preview",
-    "health_check": True,
+    "health_check": False,
     "health_retries": "3",
     "offline_fallback": True,
     "support_phone": "+1-800-555-0199",
@@ -427,12 +427,12 @@ def generate_batch_content(cfg):
             lines.append('if exist "%PROFILE_DIR%\\Default\\Cache" rmdir /s /q "%PROFILE_DIR%\\Default\\Cache" >nul 2>&1')
             lines.append('if exist "%PROFILE_DIR%\\Default\\Code Cache" rmdir /s /q "%PROFILE_DIR%\\Default\\Code Cache" >nul 2>&1')
 
-    if cfg.get("health_check", True) and host:
+    if cfg.get("health_check", False) and host:
         retries = max(1, int(cfg.get("health_retries", 3) or 3))
         lines.extend([
             f'set /a RETRIES={retries}',
             ':CHECK_NET',
-            f'powershell -NoProfile -Command "try {{ $r = Invoke-WebRequest -Uri \'{url}\' -UseBasicParsing -TimeoutSec 3; exit 0 }} catch {{ exit 1 }}" >nul 2>&1',
+            f'powershell -NoProfile -Command "try {{ $r = Invoke-WebRequest -Uri \'{url}\' -UserAgent \'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36\' -UseBasicParsing -TimeoutSec 3; exit 0 }} catch {{ exit 1 }}" >nul 2>&1',
             'if %errorlevel% equ 0 goto LAUNCH_APP',
             'set /a RETRIES-=1',
             'if %RETRIES% gtr 0 (',
@@ -470,7 +470,7 @@ def generate_embedded_python_source(cfg):
     use_isolated = bool(cfg.get("isolated_profile", True))
     kill_existing = bool(cfg.get("kill_existing", True))
     app_title = cfg.get("app_name", "").strip() or "Web App Kiosk"
-    health_check = bool(cfg.get("health_check", True))
+    health_check = bool(cfg.get("health_check", False))
     retries = max(1, int(cfg.get("health_retries", 3) or 3))
     use_fallback = bool(cfg.get("offline_fallback", True))
     clear_cache = bool(cfg.get("clear_cache_on_launch", False))
@@ -527,7 +527,7 @@ def is_url_reachable(target):
     ctx.verify_mode = ssl.CERT_NONE
     for _ in range(MAX_RETRIES):
         try:
-            req = urllib.request.Request(target, headers={{"User-Agent": "Mozilla/5.0"}})
+            req = urllib.request.Request(target, headers={{"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"}})
             with urllib.request.urlopen(req, timeout=3, context=ctx):
                 return True
         except Exception:
@@ -1344,7 +1344,7 @@ class KioskForgeApp:
         self.var_scale_factor = tk.StringVar(value="1.0")
         self.var_extra_flags = tk.StringVar(value="--disable-print-preview")
 
-        self.var_health_check = tk.BooleanVar(value=True)
+        self.var_health_check = tk.BooleanVar(value=False)
         self.var_health_retries = tk.StringVar(value="3")
         self.var_offline_fallback = tk.BooleanVar(value=True)
         self.var_support_phone = tk.StringVar(value="+1-800-555-0199")
@@ -2477,7 +2477,7 @@ class KioskForgeApp:
         self.var_win_y.set(str(data.get("win_y", "0")))
         self.var_scale_factor.set(str(data.get("scale_factor", "1.0")))
         self.var_extra_flags.set(data.get("extra_flags", ""))
-        self.var_health_check.set(data.get("health_check", True))
+        self.var_health_check.set(data.get("health_check", False))
         self.var_health_retries.set(str(data.get("health_retries", "3")))
         self.var_offline_fallback.set(data.get("offline_fallback", True))
         self.var_support_phone.set(data.get("support_phone", ""))
